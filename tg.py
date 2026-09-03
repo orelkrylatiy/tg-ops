@@ -54,12 +54,15 @@ async def get_client():
 
 
 def find_dialog(dialogs, query):
-    """Ищет диалог по подстроке имени или точному id."""
+    """Ищет диалог: точный id → точное имя → подстрока имени."""
     q = str(query).strip()
     for d in dialogs:
         if str(d.id) == q:
             return d
     ql = q.lower()
+    exact = [d for d in dialogs if (d.name or "").lower() == ql]
+    if len(exact) == 1:
+        return exact[0]
     matches = [d for d in dialogs if ql in (d.name or "").lower()]
     if not matches:
         return None
