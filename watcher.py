@@ -18,14 +18,10 @@ import subprocess
 import sys
 import time
 
-from telethon import TelegramClient
+from tgcommon import HERE, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-API_ID = 37524488
-API_HASH = "59fe2063b33c40c882b7c96ee889c7de"
-HERE = os.path.dirname(os.path.abspath(__file__))
-SESSION = os.path.join(HERE, "userbot")
 STATE = os.path.join(HERE, "state.json")
 INBOX = os.path.join(HERE, "inbox.jsonl")
 INTERVAL = 300
@@ -105,8 +101,7 @@ async def main():
     while True:
         client = None
         try:
-            client = TelegramClient(SESSION, API_ID, API_HASH, timeout=20)
-            await client.connect()
+            client = await connect_any()
             if await client.is_user_authorized():
                 await scan(client)
             else:

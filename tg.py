@@ -14,30 +14,15 @@
 """
 import argparse
 import asyncio
-import os
 import sys
 
-from telethon import TelegramClient
+from tgcommon import connect_any, load_phone
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-API_ID = 37524488
-API_HASH = "59fe2063b33c40c882b7c96ee889c7de"
-HERE = os.path.dirname(os.path.abspath(__file__))
-SESSION = os.path.join(HERE, "userbot")
-
-
-def load_phone():
-    with open(os.path.join(HERE, "phone.env"), encoding="utf-8") as fh:
-        for line in fh:
-            if line.startswith("TG_PHONE="):
-                return line.strip().split("=", 1)[1]
-    return None
-
 
 async def get_client():
-    client = TelegramClient(SESSION, API_ID, API_HASH, timeout=20)
-    await client.connect()
+    client = await connect_any()
     if not await client.is_user_authorized():
         phone = load_phone()
         if not phone:
