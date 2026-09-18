@@ -2,5 +2,7 @@ userbot.session*
 phone.env
 __pycache__/
 *.pyc
+*.log
 state.json
 inbox.jsonl
+verify_report.txt

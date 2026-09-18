@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 """Общее для tg.py и watcher.py: креды, пути, коннект с фоллбэком на SOCKS-прокси."""
+import logging
 import os
 
 from telethon import TelegramClient
+
+# телетон сыпет в консоль предупреждения о каждом разорванном коннекте — глушим,
+# итоговую ошибку connect_any() всё равно печатает сам скрипт
+logging.getLogger("telethon").setLevel(logging.CRITICAL)
 
 API_ID = 37524488
 API_HASH = "59fe2063b33c40c882b7c96ee889c7de"
