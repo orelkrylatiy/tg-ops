@@ -63,8 +63,18 @@
 
 ## E. Подписки аккаунта юзербота
 
-Заполнить после первого `py scan_jobs.py channels`. Пока известно: чат с ботами/HR-диалоги
-ведутся по skill'у tg-hr, вакансионных каналов в диалогах ранее не замечено.
+Заполнено 20.09.2026 первым прогоном `py scan_jobs.py channels` (104 диалога, из них вакансионных 5):
+
+| Канал | Что это |
+|---|---|
+| https://t.me/javascript_jobs_feed | «JavaScript Jobs — вакансии и резюме», лента-фид чата javascript_jobs |
+| https://t.me/senior_frontender | «Frontend — вакансии и стажировки», дайджесты youngjunior.ru |
+| https://t.me/FrontendPortal | «Frontend Portal», новости + вакансии |
+| «Frontend Jobs … [IT MATCH]» | вакансии с хэштегами, без публичного username (только в скане) |
+| «чатик вакансий» | приватный канал (без username) |
+
+Настройки скана — `config.json` (min_salary, days, limit, channels, out_dir);
+результаты падают в `vacancies/vacancies.jsonl` (база с дедупом) + `vacancies/digest-<дата>.md`.
 
 ## F. Мёртвые / не подходят
 

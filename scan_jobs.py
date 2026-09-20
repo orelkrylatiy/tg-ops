@@ -7,16 +7,22 @@
                                            — вакансии из вакансионных каналов за N дней
   py scan_jobs.py find QUERY              — глобальный поиск по ТГ (каналы-кандидаты на подписку)
   py scan_jobs.py join @handle|t.me/ссылка — подписаться на канал из реестра job_channels.md
+
+Дефолты scan (дни, ЗП, лимит, каналы, out_dir) — в config.json; находки дописываются
+в <out_dir>/vacancies.jsonl (база, дедуп) и <out_dir>/digest-<дата>.md (лог прогонов).
 """
 import argparse
 import asyncio
+import json
+import os
 import re
 import sys
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 from telethon import functions, types
 
-from tgcommon import connect_any
+from tgcommon import HERE, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -48,6 +54,17 @@ SALARY_RE = re.compile(
 )
 
 
+CONFIG_PATH = os.path.join(HERE, "config.json")
+
+
+def load_config():
+    """config.json рядом со скриптом: дефолты для scan (CLI-флаги сильнее)."""
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, encoding="utf-8") as fh:
+            return json.load(fh)
+    return {}
+
+
 def parse_salary_min(text):
     """Грубая оценка нижней границы ЗП в тыс. руб./мес из текста вакансии."""
     t = text.replace(" ", " ")
@@ -77,6 +94,37 @@ def classify_dialog(d):
     if d.is_group and JOB_NAME_RE.search(name):
         return "JOB?", "имя группы"
     return "-", ""
+
+
+def save_findings(out_dir, rows):
+    """Дописать находки в vacancies.jsonl (дедуп по chat_id+msg_id) и дневной digest-YYYY-MM-DD.md.
+
+    vacancies.jsonl — база всех найденных вакансий за всё время (без повторов),
+    digest — человекочитаемый лог прогонов за сегодня. Возвращает список новых.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    jsonl = os.path.join(out_dir, "vacancies.jsonl")
+    seen = set()
+    if os.path.exists(jsonl):
+        with open(jsonl, encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    r = json.loads(line)
+                    seen.add((r["chat_id"], r["msg_id"]))
+                except Exception:
+                    pass
+    new = [r for r in rows if (r["chat_id"], r["msg_id"]) not in seen]
+    with open(jsonl, "a", encoding="utf-8") as fh:
+        for r in new:
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    now = datetime.now()
+    with open(os.path.join(out_dir, f"digest-{now:%Y-%m-%d}.md"), "a", encoding="utf-8") as fh:
+        fh.write(f"\n## прогон {now:%H:%M} — новых: {len(new)}\n\n")
+        for r in new:
+            where = r["link"] or f"chat_id={r['chat_id']}"
+            fh.write(f"- **{r['chat']}** [{r['date']}] {where}\n")
+            fh.write(f"  {r['text'][:300]}\n")
+    return new
 
 
 def snippet(text, n=400):
@@ -119,15 +167,30 @@ async def cmd_channels(client, args):
 
 async def cmd_scan(client, args):
     since = datetime.now(timezone.utc) - timedelta(days=args.days)
-    dialogs = await client.get_dialogs(limit=args.limit)
     targets = []
-    for d in dialogs:
-        if not d.is_channel and not d.is_group:
-            continue
-        if args.all or JOB_NAME_RE.search(d.name or ""):
-            targets.append(d)
+    if args.channels:
+        # явный список из config.json / CLI: @хэндлы или t.me-ссылки
+        for handle in args.channels:
+            name = handle.strip().lstrip("@").split("/")[-1]
+            try:
+                ent = await client.get_entity(name)
+            except Exception as e:
+                print(f"!! {handle}: {e}")
+                continue
+            targets.append(SimpleNamespace(
+                entity=ent, id=ent.id,
+                name=getattr(ent, "title", None) or f"@{name}",
+            ))
+    else:
+        dialogs = await client.get_dialogs(limit=args.limit)
+        for d in dialogs:
+            if not d.is_channel and not d.is_group:
+                continue
+            if args.all or JOB_NAME_RE.search(d.name or ""):
+                targets.append(d)
     print(f"Сканирую {len(targets)} каналов/групп с {since:%d.%m.%Y}…\n")
     found = 0
+    rows = []
     for d in targets:
         try:
             msgs = await fetch_messages(client, d.entity, args.n, since)
@@ -153,8 +216,20 @@ async def cmd_scan(client, args):
             link = ""
             if getattr(d.entity, "username", None):
                 link = f" https://t.me/{d.entity.username}/{m.id}"
+            rows.append({
+                "date": f"{m.date:%d.%m.%Y %H:%M}",
+                "chat": d.name,
+                "chat_id": d.id,
+                "msg_id": m.id,
+                "link": link.strip(),
+                "stack": sorted(set(s.lower() for s in stack)),
+                "salary_min": sal,
+                "text": snippet(text, 1500),
+            })
             print(f"--- [{m.date:%d.%m %H:%M}] {d.name!r} [{', '.join(tag) or '-'}]{link}")
             print(f"    {snippet(text)}\n")
+    new = save_findings(args.out_dir, rows)
+    print(f"Сохранено: {len(new)} новых записей → {args.out_dir}/vacancies.jsonl + digest")
     print(f"Итого подходящих вакансий: {found}")
 
 
@@ -196,7 +271,8 @@ async def cmd_join(client, args):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Сканер вакансий ТГ")
+    cfg = load_config()
+    p = argparse.ArgumentParser(description="Сканер вакансий ТГ (дефолты — config.json)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sp = sub.add_parser("channels")
@@ -204,10 +280,15 @@ def main():
     sp.set_defaults(fn=cmd_channels)
 
     sp = sub.add_parser("scan")
-    sp.add_argument("--days", type=int, default=3)
-    sp.add_argument("-n", type=int, default=50, help="макс. сообщений на канал")
+    sp.add_argument("--days", type=int, default=cfg.get("days", 3))
+    sp.add_argument("-n", type=int, default=cfg.get("limit", 50), help="макс. сообщений на канал")
     sp.add_argument("--all", action="store_true", help="все каналы, не только вакансионные по имени")
-    sp.add_argument("--min-salary", type=int, default=300, help="мин. ЗП в тыс/мес (без ЗП — проходит)")
+    sp.add_argument("--min-salary", type=int, default=cfg.get("min_salary", 300),
+                    help="мин. ЗП в тыс/мес (без ЗП — проходит)")
+    sp.add_argument("--out-dir", default=cfg.get("out_dir", "vacancies"),
+                    help="куда складывать вакансии (jsonl + digest)")
+    sp.add_argument("--channels", nargs="*", default=cfg.get("channels") or [],
+                    help="явный список @хэндлов/t.me-ссылок (иначе — эвристика по подпискам)")
     sp.add_argument("--limit", type=int, default=500)
     sp.set_defaults(fn=cmd_scan)
 

@@ -6,3 +6,4 @@ __pycache__/
 state.json
 inbox.jsonl
 verify_report.txt
+vacancies/

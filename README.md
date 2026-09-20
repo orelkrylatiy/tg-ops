@@ -22,4 +22,10 @@ py tg.py send me "себе в избранное"
 py tg.py mark "Александра"   # отметить прочитанным
 ```
 
+## Сканер вакансий
+
+`py scan_jobs.py scan` — дефолты (дни, мин. ЗП, каналы, папка) в `config.json`,
+результаты копятся в `vacancies/vacancies.jsonl` + дневной `vacancies/digest-*.md`.
+Подробнее — в докстринге scan_jobs.py и реестре job_channels.md.
+
 Файлы `userbot.session` и `phone.env` в git не попадают.

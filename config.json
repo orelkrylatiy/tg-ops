@@ -1,0 +1,7 @@
+{
+  "out_dir": "vacancies",
+  "min_salary": 300,
+  "days": 3,
+  "limit": 50,
+  "channels": []
+}
