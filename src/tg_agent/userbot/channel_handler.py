@@ -132,7 +132,7 @@ class ChannelHandler:
             return result
 
         if result.get("created"):
-                logger.info(
+            logger.info(
                 f"Persisted vacancy post channel={channel_id} message={message_id} "
                 f"contacts={len(result.get('contacts', []))} "
                 f"links={len(result.get('links', []))}"
