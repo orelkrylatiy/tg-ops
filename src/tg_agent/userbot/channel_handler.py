@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from telethon import TelegramClient, events
+from telethon.tl.types import User
 
 from tg_agent.agent.llm import LLMClient
 from tg_agent.agent.prompts import PromptManager
@@ -126,11 +127,9 @@ class ChannelHandler:
             return result
 
         logger.info(
-            "Persisted vacancy post channel=%s message=%s contacts=%s links=%s",
-            channel_id,
-            message_id,
-            len(result.get("contacts", [])),
-            len(result.get("links", [])),
+            f"Persisted vacancy post channel={channel_id} message={message_id} "
+            f"contacts={len(result.get('contacts', []))} "
+            f"links={len(result.get('links', []))}"
         )
 
         if notify_owner:
@@ -339,6 +338,15 @@ class ChannelHandler:
         sent_usernames: list[str] = []
 
         for username in usernames:
+            try:
+                entity = await self.client.get_entity(username)
+            except Exception as exc:
+                logger.info(f"Outreach: could not resolve @{username}: {exc}")
+                continue
+            if not isinstance(entity, User) or bool(getattr(entity, "bot", False)):
+                logger.info(f"Outreach: @{username} is not a human user; skipping")
+                continue
+
             with self.db.get_sync_session() as session:
                 if not GlobalStateRepo(session).get_bool(
                     "agent_enabled",
@@ -383,7 +391,7 @@ class ChannelHandler:
                 continue
 
             try:
-                sent_message = await self.client.send_message(username, outreach_text)
+                sent_message = await self.client.send_message(entity, outreach_text)
                 chat_id = sent_message.chat_id
 
                 with self.db.get_sync_session() as session:
