@@ -122,6 +122,7 @@ class ChannelHandler:
             source_link=source_link,
             keywords=keywords,
             posted_at=getattr(message, "date", None),
+            extra_urls=self._embedded_urls(message),
         )
         if not result.get("matched") or not result.get("created"):
             return result
@@ -459,6 +460,24 @@ class ChannelHandler:
                 logger.warning(f"Outreach: failed to send to @{username}: {exc}")
 
         return sent_usernames
+
+    @staticmethod
+    def _embedded_urls(message: Any) -> list[str]:
+        urls: list[str] = []
+
+        for entity in getattr(message, "entities", None) or []:
+            url = getattr(entity, "url", None)
+            if url:
+                urls.append(str(url))
+
+        reply_markup = getattr(message, "reply_markup", None)
+        for row in getattr(reply_markup, "rows", None) or []:
+            for button in getattr(row, "buttons", None) or []:
+                url = getattr(button, "url", None)
+                if url:
+                    urls.append(str(url))
+
+        return list(dict.fromkeys(urls))
 
     @staticmethod
     def _keywords(channel_config: Any) -> list[str]:
