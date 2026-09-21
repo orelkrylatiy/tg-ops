@@ -132,17 +132,18 @@ class VacancyTracker:
                 matched_keywords=matched,
                 posted_at=posted_at,
             )
-            if created and vacancy.id is not None:
+            vacancy_id = vacancy.id
+            if created and vacancy_id is not None:
                 for contact in contacts:
                     repo.add_contact(
-                        vacancy.id,
+                        vacancy_id,
                         kind=str(contact["kind"]),
                         value=str(contact["value"]),
                         source_url=contact["source_url"],
                     )
                 for link in links:
                     repo.add_link(
-                        vacancy.id,
+                        vacancy_id,
                         url=str(link["url"]),
                         domain=link["domain"],
                     )
@@ -151,7 +152,7 @@ class VacancyTracker:
             "ok": True,
             "matched": True,
             "created": created,
-            "vacancy_id": vacancy.id,
+            "vacancy_id": vacancy_id,
             "contacts": contacts,
             "links": links,
             "matched_keywords": matched,
