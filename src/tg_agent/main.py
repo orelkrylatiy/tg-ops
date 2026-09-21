@@ -47,7 +47,9 @@ class Agent:
         self.telegram_service: TelegramService | None = None
         self.skill_runner: SkillRunner | None = None
         self.mcp_runtime: MCPRuntime | None = None
+        self.channel_handler: ChannelHandler | None = None
         self._shutdown = False
+        self._stop_event = asyncio.Event()
 
     async def initialize(self) -> None:
         """Initialize all components and register all control surfaces."""
@@ -98,6 +100,7 @@ class Agent:
             prompt_manager=self.prompt_manager,
         )
         channel_handler.register_handlers()
+        self.channel_handler = channel_handler
 
         setup_control_handlers(
             dp=self.control_bot.dispatcher,
@@ -157,6 +160,8 @@ class Agent:
         ]
         if self.mcp_runtime is not None:
             tasks.append(asyncio.create_task(self._run_mcp()))
+        if self.settings.vacancy_scanner_enabled and self.channel_handler is not None:
+            tasks.append(asyncio.create_task(self._run_vacancy_scanner()))
 
         try:
             await asyncio.gather(*tasks)
@@ -195,6 +200,37 @@ class Agent:
         finally:
             logger.info("MCP event loop stopped")
 
+    async def _run_vacancy_scanner(self) -> None:
+        if self.channel_handler is None:
+            return
+
+        logger.info(
+            f"Vacancy scanner started; interval={self.settings.vacancy_scan_interval_seconds}s"
+        )
+        while not self._shutdown:
+            try:
+                result = await self.channel_handler.scan_configured_channels()
+                if not result.get("skipped"):
+                    logger.info(
+                        "Vacancy scan complete: "
+                        f"channels={result.get('channels', 0)}, "
+                        f"created={result.get('vacancies_created', 0)}"
+                    )
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.exception(f"Vacancy scanner iteration failed: {exc}")
+
+            try:
+                await asyncio.wait_for(
+                    self._stop_event.wait(),
+                    timeout=self.settings.vacancy_scan_interval_seconds,
+                )
+            except asyncio.TimeoutError:
+                continue
+
+        logger.info("Vacancy scanner stopped")
+
     async def shutdown(self) -> None:
         """Gracefully stop every network surface."""
         if self._shutdown:
@@ -202,6 +238,7 @@ class Agent:
 
         logger.info("Shutting down agent...")
         self._shutdown = True
+        self._stop_event.set()
 
         if self.mcp_runtime is not None:
             await self.mcp_runtime.stop()
