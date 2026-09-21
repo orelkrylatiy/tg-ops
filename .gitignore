@@ -7,3 +7,6 @@ state.json
 inbox.jsonl
 verify_report.txt
 vacancies/
+
+# локальные черновики аутрича (личные данные) — в git не публикуем
+outreach-*.md
