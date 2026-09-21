@@ -39,8 +39,10 @@ Claude Code
 | Control Bot ---------+--> TelegramService       |
 | Telegram events -----+        |                 |
 | Skills --------------+        |                 |
+| Vacancy scanner ------+        |                 |
 |                               +--> Policy       |
 |                               +--> LLM          |
+|                               +--> Vacancy DB   |
 |                               +--> Outreach     |
 |                               +--> Audit/SQLite |
 |                               +--> Telethon     |
@@ -85,6 +87,7 @@ Read/research
   tg_generate_reply
   tg_scan_channel
   tg_list_configured_channels
+  tg_recent_vacancies
 
 Workflow/control
   tg_list_skills
@@ -134,7 +137,92 @@ Policy remains deterministic and owns:
 
 SQLite is appropriate as the source of truth for the current single-user daemon.
 
-Current durable state includes chat settings, message/audit logs, pending actions, global runtime state, monitored channels and outreach deduplication.
+Current durable state includes:
+
+- chat settings and trust/mode state;
+- message/audit logs;
+- pending HITL actions;
+- global runtime state;
+- monitored-channel configuration;
+- outreach claim/status/deduplication state;
+- persisted vacancy records;
+- vacancy contacts (Telegram/email);
+- vacancy external/application links;
+- per-channel vacancy scan cursors.
+
+The concrete vacancy tables are `VacancyRecord`, `VacancyContact`, `VacancyLink` and `ChannelScanState`. `OutreachContact` is intentionally separate: it records outreach execution state, not general lead discovery.
+
+## Current vacancy automation
+
+Vacancy tracking is already a persistent production path. It is not the same thing as the future generic workflow engine described later.
+
+Current flow:
+
+```text
+Telethon live event -----------\
+Periodic reconciliation scan ---+--> ChannelHandler._process_channel_message()
+Manual /scan_channel ----------/            |
+                                             v
+                                  monitored-channel policy
+                                             |
+                                      keyword filtering
+                                             |
+                                  VacancyTracker.process_post()
+                                             |
+                               dedup by (channel_id, message_id)
+                                             |
+                         +-------------------+-------------------+
+                         |                                       |
+                         v                                       v
+                  VacancyContact                           VacancyLink
+             Telegram usernames/email                non-Telegram URLs
+                         |                                       |
+                         +-------------------+-------------------+
+                                             |
+                                  optional owner notification
+                                             |
+                               per-channel auto_outreach?
+                                             |
+                          resolve target -> require human User
+                                             |
+                           durable claim + hourly limit + send
+```
+
+The parser handles visible text plus Telegram text-url entities and inline-button URLs. A Telegram URL may become an outreach contact; external URLs are stored as vacancy links.
+
+Realtime monitoring remains event-driven. The background scanner is a bounded **reconciliation/catch-up** mechanism for downtime/missed updates:
+
+- first scan reads a bounded history;
+- historical outreach is disabled by default;
+- later scans continue from `ChannelScanState.last_message_id`;
+- one broken/unavailable channel must not block the others;
+- manual scanning reuses the same ingestion path instead of duplicating business logic.
+
+Relevant settings:
+
+```text
+VACANCY_SCANNER_ENABLED
+VACANCY_SCAN_INTERVAL_SECONDS
+VACANCY_INITIAL_SCAN_LIMIT
+VACANCY_SCAN_BATCH_SIZE
+VACANCY_BACKFILL_OUTREACH
+```
+
+Current validation bounds are 60..86400 seconds for the interval and 1..500 for initial/batch scan limits.
+
+### Control-bot operational view
+
+The existing owner-only control bot is also the vacancy/outreach dashboard; no second bot or second Telethon session is required.
+
+Current commands include:
+
+```text
+/status       runtime status + vacancy/outreach totals
+/stats        vacancy/outreach funnel and 24h/7d counts
+/outreach N   total successful outreach + recent recipients
+/vacancies N  recent persisted vacancies and lead/link counts
+/scan_channel manual scan through the unified vacancy pipeline
+```
 
 ## Tool strategy
 
@@ -155,9 +243,9 @@ Use three levels:
 
 The current primitive tool count is acceptable. Prefer adding a high-level workflow over adding many low-value Telegram CRUD tools.
 
-## Next architecture: durable automation
+## Next architecture: generic durable automation
 
-The missing capability is persistence across Claude turns/sessions.
+Vacancy tracking already has durable state and restart-safe reconciliation. The missing capability is a **generic**, reusable automation runtime that can persist arbitrary workflows, timers and conditions across Claude turns/sessions.
 
 Target flow:
 
@@ -262,7 +350,7 @@ Telegram already gives live events through Telethon, so new-message monitoring s
 new Telegram message -> event -> workflow
 ```
 
-Do not poll Telegram every few minutes when a push-style event already exists.
+The current vacancy scanner does run periodically, but specifically as reconciliation/catch-up around the live event path. Do not create a second polling-only business path that duplicates live processing.
 
 Use timers/scheduler for:
 
@@ -343,6 +431,8 @@ Temporal and LangGraph contain useful durability/HITL concepts, but they solve a
 
 ## Recommended implementation order
 
+The vacancy pipeline above is already implemented and should be preserved while the generic runtime is introduced.
+
 1. Add SQLite `EventQueue` and one worker execution path.
 2. Add `WorkflowRun`, retry/backoff, dedup and startup replay.
 3. Add `WatchRule` with Telegram-event, schedule and reply-timeout triggers.
@@ -375,3 +465,28 @@ interactive:
 autonomous:
 "следи / повторяй / сделай позже / если X — сделай Y"
 ```
+
+
+## Current-vs-target checklist
+
+As of 2026-09-21:
+
+| Capability | Status |
+|---|---|
+| One daemon / one Telethon owner | Current |
+| MCP embedded in daemon | Current |
+| Deterministic chat/outreach policy | Current |
+| Persisted vacancy/contact/link DB | Current |
+| Live vacancy monitoring | Current |
+| Periodic restart-safe vacancy reconciliation | Current |
+| Unified live/background/manual vacancy ingestion | Current |
+| Safe historical backfill | Current |
+| Human-only automatic recruiter DM | Current |
+| Control-bot vacancy/outreach dashboard | Current |
+| `tg_recent_vacancies` MCP read tool | Current |
+| Generic `EventQueue` | Target |
+| Generic `WorkflowRun` history | Target |
+| Generic `WatchRule` engine | Target |
+| Unified durable `ActionExecutor` for all writes | Target |
+
+Do not document target objects as if they already exist in code.
