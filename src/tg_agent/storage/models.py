@@ -7,12 +7,17 @@ from datetime import datetime
 from enum import Enum
 
 try:
+    from sqlalchemy import UniqueConstraint
     from sqlmodel import Field, SQLModel
 
     def model_dataclass(cls):
         return cls
 
 except ImportError:  # pragma: no cover
+    class UniqueConstraint:
+        def __init__(self, *args, **kwargs):
+            pass
+
     def Field(default=None, **kwargs):
         if "default_factory" in kwargs:
             return dataclass_field(default_factory=kwargs["default_factory"])
@@ -157,3 +162,73 @@ class OutreachContact(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     sent_at: datetime | None = Field(default=None, index=True)
+
+
+@model_dataclass
+class VacancyRecord(SQLModel, table=True):
+    """Persisted vacancy/job post discovered in a monitored Telegram channel."""
+
+    __tablename__ = "vacancies"
+    __table_args__ = (
+        UniqueConstraint("channel_id", "message_id", name="uq_vacancy_source"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    channel_id: int = Field(..., index=True)
+    message_id: int = Field(..., index=True)
+    channel_title: str | None = Field(default=None)
+    source_link: str | None = Field(default=None)
+    text: str = Field(...)
+    matched_keywords: str | None = Field(default=None)
+    posted_at: datetime | None = Field(default=None, index=True)
+    discovered_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+@model_dataclass
+class VacancyContact(SQLModel, table=True):
+    """Contact extracted from a persisted vacancy."""
+
+    __tablename__ = "vacancy_contacts"
+    __table_args__ = (
+        UniqueConstraint(
+            "vacancy_id",
+            "kind",
+            "value",
+            name="uq_vacancy_contact",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    vacancy_id: int = Field(..., foreign_key="vacancies.id", index=True)
+    kind: str = Field(..., index=True)
+    value: str = Field(..., index=True)
+    source_url: str | None = Field(default=None)
+    discovered_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+@model_dataclass
+class VacancyLink(SQLModel, table=True):
+    """External URL extracted from a persisted vacancy."""
+
+    __tablename__ = "vacancy_links"
+    __table_args__ = (
+        UniqueConstraint("vacancy_id", "url", name="uq_vacancy_link"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    vacancy_id: int = Field(..., foreign_key="vacancies.id", index=True)
+    url: str = Field(..., index=True)
+    domain: str | None = Field(default=None, index=True)
+    discovered_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+@model_dataclass
+class ChannelScanState(SQLModel, table=True):
+    """Durable cursor for autonomous vacancy scans."""
+
+    __tablename__ = "channel_scan_state"
+
+    channel_id: int = Field(..., primary_key=True)
+    last_message_id: int = Field(default=0)
+    last_scanned_at: datetime = Field(default_factory=datetime.utcnow)
