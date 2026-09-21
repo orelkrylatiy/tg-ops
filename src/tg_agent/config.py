@@ -188,15 +188,18 @@ class Settings(BaseSettings):
         default=True, alias="REQUIRE_APPROVAL_FOR_MONEY_OR_COMMITMENTS"
     )
 
-    @field_validator(
-        "vacancy_scan_interval_seconds",
-        "vacancy_initial_scan_limit",
-        "vacancy_scan_batch_size",
-    )
+    @field_validator("vacancy_scan_interval_seconds")
     @classmethod
-    def validate_positive_vacancy_scan_setting(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("vacancy scan settings must be positive integers")
+    def validate_vacancy_scan_interval(cls, v: int) -> int:
+        if not 60 <= v <= 86400:
+            raise ValueError("VACANCY_SCAN_INTERVAL_SECONDS must be between 60 and 86400")
+        return v
+
+    @field_validator("vacancy_initial_scan_limit", "vacancy_scan_batch_size")
+    @classmethod
+    def validate_vacancy_scan_limit(cls, v: int) -> int:
+        if not 1 <= v <= 500:
+            raise ValueError("vacancy scan limits must be between 1 and 500")
         return v
 
     @field_validator("tg_api_id")
