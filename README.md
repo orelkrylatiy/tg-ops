@@ -248,7 +248,10 @@ Core commands:
 
 | Command | Description |
 | --- | --- |
-| `/status` | Runtime state and statistics |
+| `/status` | Runtime state plus vacancy/outreach totals |
+| `/stats` | Vacancy funnel and outreach metrics (24h/7d, pending, failed) |
+| `/outreach [N]` | Total successful outreach and latest recipients |
+| `/vacancies [N]` | Latest persisted vacancies with contact/link counts |
 | `/pause` | Pause automatic processing |
 | `/resume` | Resume automatic processing |
 | `/chats` | Configured chats |
@@ -360,6 +363,8 @@ Important controls:
 - audit logging for agent/MCP sends
 - MCP HTTP binding restricted to loopback addresses
 - `MCP_ALLOW_WRITES` kill switch
+
+The control bot is also the operational dashboard: `/stats`, `/outreach` and `/vacancies` read the same SQLite state used by the autonomous scanner and outreach engine. The existing `CONTROL_BOT_TOKEN` is sufficient; no second Telegram bot or second Telethon session is required.
 
 Direct MCP send is intended for an explicit owner instruction such as “напиши/ответь/отправь”. Research wording such as “посмотри/найди/проверь” should remain read-only. Repeated/multi-contact sending should use a named workflow instead of loops of raw send calls.
 
