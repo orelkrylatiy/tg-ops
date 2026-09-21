@@ -490,12 +490,17 @@ class ChannelHandler:
 
     @staticmethod
     def _keywords(channel_config: Any) -> list[str]:
-        if not channel_config.keywords:
+        value = getattr(channel_config, "keywords", None)
+        if not value:
             return []
+        if isinstance(value, str):
+            raw_keywords = value.split(",")
+        else:
+            raw_keywords = value
         return [
-            keyword.strip()
-            for keyword in str(channel_config.keywords).split(",")
-            if keyword.strip()
+            str(keyword).strip()
+            for keyword in raw_keywords
+            if str(keyword).strip()
         ]
 
     @staticmethod
