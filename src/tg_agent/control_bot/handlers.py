@@ -629,7 +629,7 @@ async def cmd_scan_channel(
     args: str,
     channel_handler=None,
 ) -> None:
-    """Scan recent posts and optionally run configured per-channel outreach."""
+    """Scan recent posts through the same vacancy pipeline as live automation."""
     if not client:
         await message.answer("❌ Userbot client not available.")
         return
@@ -638,18 +638,14 @@ async def cmd_scan_channel(
         channels = MonitoredChannelRepo(session).get_all()
 
     if not channels:
-        # Legacy fallback for installs that still keep channels only in MONITORED_CHANNELS.
         channels = settings.channel_configs
-
     if not channels:
         await message.answer("❌ No monitored channels configured.")
         return
 
-    # Parse arguments: [limit] [ON|OFF]
     parts = args.strip().split()
     limit = 10
-    outreach_mode = None  # None/ON = use channel config, OFF = disable outreach
-
+    outreach_mode = None
     for part in parts:
         if part.isdigit():
             limit = max(1, min(int(part), 50))
@@ -658,75 +654,96 @@ async def cmd_scan_channel(
         elif part.upper() == "OFF":
             outreach_mode = False
 
-    # Outreach is always constrained by the channel's persisted auto_outreach flag.
-    # ON enables configured outreach; it must not turn monitor-only channels into DM sources.
-    base_outreach_available = channel_handler is not None and channel_handler.llm_client is not None
+    pipeline_available = channel_handler is not None
+    outreach_available = (
+        pipeline_available
+        and channel_handler.llm_client is not None
+        and outreach_mode is not False
+    )
 
     await message.answer(
         f"🔍 Сканирую {len(channels)} канал(ов), последние {limit} постов"
-        + (" + обработаю настроенный аутрич" if base_outreach_available and outreach_mode is not False else " (без аутрича)") + "..."
+        + (" + обработаю настроенный аутрич" if outreach_available else " (без аутрича)")
+        + "..."
     )
 
     total = 0
+    stored = 0
     outreach_count = 0
+
     for channel in channels:
-        channel_id = channel.channel_id
-        channel_keywords = [keyword.strip().lower() for keyword in (channel.keywords or [])]
-        if isinstance(channel.keywords, str):
-            channel_keywords = [keyword.strip().lower() for keyword in channel.keywords.split(",")]
-        channel_auto_outreach = bool(channel.auto_outreach)
+        channel_id = int(channel.channel_id)
         try:
             msgs = await client.get_messages(channel_id, limit=limit)
             chat = await client.get_entity(channel_id)
             title = getattr(chat, "title", f"Channel {channel_id}")
+            username = getattr(chat, "username", None)
 
             for msg in reversed(msgs):
-                if not msg.text:
+                if not getattr(msg, "text", None):
                     continue
 
-                if channel_keywords and not any(keyword in msg.text.lower() for keyword in channel_keywords):
+                if pipeline_available:
+                    result = await channel_handler._process_channel_message(
+                        message=msg,
+                        channel_config=channel,
+                        channel_title=title,
+                        channel_username=username,
+                        notify_owner=True,
+                        allow_outreach=outreach_mode is not False,
+                        process_existing=True,
+                    )
+                    if not result.get("matched"):
+                        continue
+                    total += 1
+                    stored += int(bool(result.get("created")))
+                    outreach_count += len(result.get("sent_usernames", []))
                     continue
 
-                # Truncate to 400 chars for cleaner view
-                preview_len = 400
-                text_preview = msg.text[:preview_len]
-                truncated = len(msg.text) > preview_len
+                keywords_value = getattr(channel, "keywords", None) or []
+                if isinstance(keywords_value, str):
+                    keywords = [
+                        keyword.strip().lower()
+                        for keyword in keywords_value.split(",")
+                        if keyword.strip()
+                    ]
+                else:
+                    keywords = [
+                        str(keyword).strip().lower()
+                        for keyword in keywords_value
+                        if str(keyword).strip()
+                    ]
+                if keywords and not any(
+                    keyword in msg.text.lower() for keyword in keywords
+                ):
+                    continue
 
-                # Build channel link (t.me/c/channel_id for private channels)
+                preview = html.escape(msg.text[:400])
+                truncated = len(msg.text) > 400
                 link_id = str(channel_id)
                 if link_id.startswith("-100"):
-                    link_id = link_id[4:]  # Remove -100 prefix
+                    link_id = link_id[4:]
                 channel_link = f"https://t.me/c/{link_id}/{msg.id}"
-
-                text = (
-                    f"{text_preview}"
-                    f"{'... (обрезано)' if truncated else ''}"
-                    f"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📢 <b>{title}</b> | <a href='{channel_link}'>оригинал</a>"
-                )
-
                 await control_bot.send_message(
                     chat_id=settings.owner_telegram_id,
-                    text=text,
+                    text=(
+                        f"{preview}{'... (обрезано)' if truncated else ''}"
+                        "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📢 <b>{html.escape(title)}</b> | "
+                        f"<a href='{channel_link}'>оригинал</a>"
+                    ),
                     parse_mode="HTML",
                 )
                 total += 1
 
-                do_outreach = (
-                    base_outreach_available
-                    and channel_auto_outreach
-                    and outreach_mode is not False
-                )
-                if do_outreach:
-                    before = len(channel_handler._contacted)
-                    await channel_handler._try_outreach(msg.text, channel_id)
-                    outreach_count += len(channel_handler._contacted) - before
+        except Exception as exc:
+            logger.exception(f"Manual channel scan failed for {channel_id}: {exc}")
+            await message.answer(f"❌ Ошибка при сканировании {channel_id}: {exc}")
 
-        except Exception as e:
-            await message.answer(f"❌ Ошибка при сканировании {channel_id}: {e}")
-
-    summary = f"✅ Переслано {total} постов."
-    if base_outreach_available and outreach_mode is not False:
+    summary = f"✅ Обработано {total} подходящих постов."
+    if pipeline_available:
+        summary += f" Новых записей в BD: {stored}."
+    if outreach_available:
         summary += f" Написал {outreach_count} новым контактам."
     await message.answer(summary)
 
