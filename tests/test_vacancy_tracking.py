@@ -34,6 +34,10 @@ async def test_vacancy_tracker_persists_contacts_links_and_deduplicates(tmp_path
         channel_title="Jobs",
         source_link="https://t.me/c/123/77",
         keywords=["python", "golang"],
+        extra_urls=[
+            "https://apply.example.org/jobs/77",
+            "https://t.me/CharlieHR",
+        ],
     )
     second = tracker.process_post(
         channel_id=-100123,
@@ -60,11 +64,13 @@ async def test_vacancy_tracker_persists_contacts_links_and_deduplicates(tmp_path
         ("telegram", "alice_hr"),
         ("telegram", "bobrecruiter"),
         ("telegram", "jobs_channel"),
+        ("telegram", "charliehr"),
         ("email", "jobs@example.com"),
     }
-    assert [(item.domain, item.url) for item in links] == [
-        ("jobs.example.com", "https://jobs.example.com/roles/42")
-    ]
+    assert {(item.domain, item.url) for item in links} == {
+        ("jobs.example.com", "https://jobs.example.com/roles/42"),
+        ("apply.example.org", "https://apply.example.org/jobs/77"),
+    }
 
 
 @pytest.mark.asyncio
@@ -182,3 +188,27 @@ async def test_outreach_skips_non_user_telegram_targets(tmp_path):
 
     assert sent == []
     client.send_message.assert_not_awaited()
+
+
+def test_channel_handler_extracts_embedded_text_and_button_urls():
+    message = SimpleNamespace(
+        entities=[
+            SimpleNamespace(url="https://jobs.example.com/text-link"),
+            SimpleNamespace(url=None),
+        ],
+        reply_markup=SimpleNamespace(
+            rows=[
+                SimpleNamespace(
+                    buttons=[
+                        SimpleNamespace(url="https://company.example/apply"),
+                        SimpleNamespace(url=None),
+                    ]
+                )
+            ]
+        ),
+    )
+
+    assert ChannelHandler._embedded_urls(message) == [
+        "https://jobs.example.com/text-link",
+        "https://company.example/apply",
+    ]
