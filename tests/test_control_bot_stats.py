@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from tg_agent.control_bot.bot import ControlBot
 from tg_agent.control_bot.handlers import cmd_outreach, cmd_stats, cmd_status, cmd_vacancies
 from tg_agent.services.vacancies import VacancyTracker
 from tg_agent.storage.db import Database
@@ -188,3 +189,19 @@ async def test_outreach_rejects_invalid_limit(tmp_path):
 
 def test_outreach_status_enum_is_stable():
     assert {status.value for status in OutreachStatus} == {"pending", "sent", "failed"}
+
+
+@pytest.mark.asyncio
+async def test_control_bot_command_menu_includes_dashboard_commands():
+    settings = SimpleNamespace(control_bot_token="123456:token")
+    control_bot = ControlBot(settings)
+    bot = MagicMock()
+    bot.get_me = AsyncMock(return_value=SimpleNamespace(username="ops_bot", id=123))
+    bot.set_my_commands = AsyncMock()
+    control_bot._bot = bot
+
+    await control_bot.start()
+
+    commands = bot.set_my_commands.await_args.args[0]
+    names = {command.command for command in commands}
+    assert {"status", "stats", "outreach", "vacancies"}.issubset(names)
