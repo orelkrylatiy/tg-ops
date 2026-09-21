@@ -37,6 +37,10 @@ from tg_agent.storage.models import (
     OutreachContact,
     OutreachStatus,
     PendingAction,
+    ChannelScanState,
+    VacancyContact,
+    VacancyLink,
+    VacancyRecord,
 )
 
 logger = get_logger(__name__)
@@ -502,3 +506,151 @@ class OutreachContactRepo:
                 )
             ).all()
         )
+
+
+class VacancyRepo:
+    """Persistence for discovered vacancies and their extracted metadata."""
+
+    def __init__(self, session: Session | AsyncSession):
+        self.session = session
+
+    def get_by_source(self, channel_id: int, message_id: int) -> VacancyRecord | None:
+        return self.session.exec(
+            select(VacancyRecord).where(
+                VacancyRecord.channel_id == channel_id,
+                VacancyRecord.message_id == message_id,
+            )
+        ).first()
+
+    def create_if_missing(
+        self,
+        *,
+        channel_id: int,
+        message_id: int,
+        text: str,
+        channel_title: str | None = None,
+        source_link: str | None = None,
+        matched_keywords: list[str] | None = None,
+        posted_at: datetime | None = None,
+    ) -> tuple[VacancyRecord, bool]:
+        existing = self.get_by_source(channel_id, message_id)
+        if existing is not None:
+            return existing, False
+
+        vacancy = VacancyRecord(
+            channel_id=channel_id,
+            message_id=message_id,
+            channel_title=channel_title,
+            source_link=source_link,
+            text=text,
+            matched_keywords=",".join(matched_keywords) if matched_keywords else None,
+            posted_at=posted_at,
+        )
+        self.session.add(vacancy)
+        self.session.commit()
+        self.session.refresh(vacancy)
+        return vacancy, True
+
+    def add_contact(
+        self,
+        vacancy_id: int,
+        *,
+        kind: str,
+        value: str,
+        source_url: str | None = None,
+    ) -> VacancyContact:
+        existing = self.session.exec(
+            select(VacancyContact).where(
+                VacancyContact.vacancy_id == vacancy_id,
+                VacancyContact.kind == kind,
+                VacancyContact.value == value,
+            )
+        ).first()
+        if existing is not None:
+            return existing
+
+        contact = VacancyContact(
+            vacancy_id=vacancy_id,
+            kind=kind,
+            value=value,
+            source_url=source_url,
+        )
+        self.session.add(contact)
+        self.session.commit()
+        self.session.refresh(contact)
+        return contact
+
+    def add_link(self, vacancy_id: int, *, url: str, domain: str | None = None) -> VacancyLink:
+        existing = self.session.exec(
+            select(VacancyLink).where(
+                VacancyLink.vacancy_id == vacancy_id,
+                VacancyLink.url == url,
+            )
+        ).first()
+        if existing is not None:
+            return existing
+
+        link = VacancyLink(vacancy_id=vacancy_id, url=url, domain=domain)
+        self.session.add(link)
+        self.session.commit()
+        self.session.refresh(link)
+        return link
+
+    def get_contacts(self, vacancy_id: int) -> list[VacancyContact]:
+        return list(
+            self.session.exec(
+                select(VacancyContact)
+                .where(VacancyContact.vacancy_id == vacancy_id)
+                .order_by(VacancyContact.id)
+            ).all()
+        )
+
+    def get_links(self, vacancy_id: int) -> list[VacancyLink]:
+        return list(
+            self.session.exec(
+                select(VacancyLink)
+                .where(VacancyLink.vacancy_id == vacancy_id)
+                .order_by(VacancyLink.id)
+            ).all()
+        )
+
+    def get_recent(self, limit: int = 50) -> list[VacancyRecord]:
+        return list(
+            self.session.exec(
+                select(VacancyRecord)
+                .order_by(VacancyRecord.discovered_at.desc())
+                .limit(max(1, min(limit, 200)))
+            ).all()
+        )
+
+    def count(self) -> int:
+        return len(self.session.exec(select(VacancyRecord)).all())
+
+
+class ChannelScanStateRepo:
+    """Durable per-channel cursor for autonomous scans."""
+
+    def __init__(self, session: Session | AsyncSession):
+        self.session = session
+
+    def get(self, channel_id: int) -> ChannelScanState | None:
+        return self.session.get(ChannelScanState, channel_id)
+
+    def last_message_id(self, channel_id: int) -> int:
+        state = self.get(channel_id)
+        return state.last_message_id if state is not None else 0
+
+    def update(self, channel_id: int, last_message_id: int) -> ChannelScanState:
+        state = self.get(channel_id)
+        if state is None:
+            state = ChannelScanState(
+                channel_id=channel_id,
+                last_message_id=max(0, last_message_id),
+            )
+            self.session.add(state)
+        else:
+            state.last_message_id = max(state.last_message_id, last_message_id)
+            state.last_scanned_at = datetime.utcnow()
+        self.session.commit()
+        self.session.refresh(state)
+        return state
