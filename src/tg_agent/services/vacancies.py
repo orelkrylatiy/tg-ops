@@ -95,6 +95,7 @@ class VacancyTracker:
         source_link: str | None = None,
         keywords: list[str] | None = None,
         posted_at: datetime | None = None,
+        extra_urls: list[str] | None = None,
     ) -> dict[str, Any]:
         """Persist one post if it matches channel keywords.
 
@@ -118,8 +119,11 @@ class VacancyTracker:
                 "links": [],
             }
 
-        contacts = self.extract_contacts(text)
-        links = self.extract_external_links(text)
+        metadata_text = text
+        if extra_urls:
+            metadata_text += "\n" + "\n".join(extra_urls)
+        contacts = self.extract_contacts(metadata_text)
+        links = self.extract_external_links(metadata_text)
 
         with self.db.get_sync_session() as session:
             repo = VacancyRepo(session)
