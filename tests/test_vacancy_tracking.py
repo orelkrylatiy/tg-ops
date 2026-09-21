@@ -145,3 +145,37 @@ async def test_channel_scanner_backfills_without_outreach_then_processes_new_pos
     with db.get_sync_session() as session:
         assert VacancyRepo(session).count() == 3
         assert ChannelScanStateRepo(session).last_message_id(-100123) == 3
+
+
+@pytest.mark.asyncio
+async def test_outreach_skips_non_user_telegram_targets(tmp_path):
+    db = Database(database_url=f"sqlite:///{tmp_path / 'agent.db'}")
+    await db.init_db()
+    settings = SimpleNamespace(
+        agent_global_enabled=True,
+        owner_telegram_id=123456,
+        prompts_dir=Path(__file__).parent.parent / "prompts",
+    )
+    client = MagicMock()
+    client.get_entity = AsyncMock(
+        return_value=SimpleNamespace(title="Jobs Channel", bot=False)
+    )
+    client.send_message = AsyncMock()
+
+    handler = ChannelHandler(
+        settings=settings,
+        client=client,
+        control_bot=MagicMock(),
+        db=db,
+        llm_client=object(),
+        prompt_manager=MagicMock(),
+    )
+
+    sent = await handler._try_outreach(
+        post_text="Apply via @jobs_channel",
+        channel_id=-100123,
+        max_per_hour=5,
+    )
+
+    assert sent == []
+    client.send_message.assert_not_awaited()
