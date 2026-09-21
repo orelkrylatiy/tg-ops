@@ -212,3 +212,63 @@ def test_channel_handler_extracts_embedded_text_and_button_urls():
         "https://jobs.example.com/text-link",
         "https://company.example/apply",
     ]
+
+
+@pytest.mark.asyncio
+async def test_channel_processor_feeds_embedded_telegram_contact_to_outreach(tmp_path):
+    db = Database(
+        database_url=f"sqlite:///{tmp_path / 'agent.db'}",
+        default_agent_enabled=True,
+    )
+    await db.init_db()
+
+    settings = SimpleNamespace(
+        agent_global_enabled=True,
+        owner_telegram_id=123456,
+        prompts_dir=Path(__file__).parent.parent / "prompts",
+    )
+    handler = ChannelHandler(
+        settings=settings,
+        client=MagicMock(),
+        control_bot=MagicMock(),
+        db=db,
+        llm_client=object(),
+        prompt_manager=MagicMock(),
+    )
+    handler._try_outreach = AsyncMock(return_value=["alice_hr"])
+
+    message = SimpleNamespace(
+        id=50,
+        text="Python vacancy",
+        date=None,
+        entities=[],
+        reply_markup=SimpleNamespace(
+            rows=[
+                SimpleNamespace(
+                    buttons=[
+                        SimpleNamespace(url="https://t.me/alice_hr"),
+                    ]
+                )
+            ]
+        ),
+    )
+    channel = SimpleNamespace(
+        channel_id=-100123,
+        keywords="python",
+        auto_outreach=True,
+        max_posts_per_hour=10,
+    )
+
+    result = await handler._process_channel_message(
+        message=message,
+        channel_config=channel,
+        channel_title="Python Jobs",
+        channel_username="python_jobs",
+        notify_owner=False,
+        allow_outreach=True,
+    )
+
+    assert result["created"] is True
+    assert result["sent_usernames"] == ["alice_hr"]
+    outreach_text = handler._try_outreach.await_args.kwargs["post_text"]
+    assert "https://t.me/alice_hr" in outreach_text
