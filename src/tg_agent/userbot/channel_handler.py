@@ -101,6 +101,7 @@ class ChannelHandler:
         channel_username: str | None = None,
         notify_owner: bool,
         allow_outreach: bool,
+        process_existing: bool = False,
     ) -> dict[str, Any]:
         text = (getattr(message, "text", None) or "").strip()
         message_id = getattr(message, "id", None)
@@ -114,6 +115,7 @@ class ChannelHandler:
             int(message_id),
             channel_username,
         )
+        embedded_urls = self._embedded_urls(message)
         result = self.vacancy_tracker.process_post(
             channel_id=channel_id,
             message_id=int(message_id),
@@ -122,16 +124,19 @@ class ChannelHandler:
             source_link=source_link,
             keywords=keywords,
             posted_at=getattr(message, "date", None),
-            extra_urls=self._embedded_urls(message),
+            extra_urls=embedded_urls,
         )
-        if not result.get("matched") or not result.get("created"):
+        if not result.get("matched"):
+            return result
+        if not result.get("created") and not process_existing:
             return result
 
-        logger.info(
-            f"Persisted vacancy post channel={channel_id} message={message_id} "
-            f"contacts={len(result.get('contacts', []))} "
-            f"links={len(result.get('links', []))}"
-        )
+        if result.get("created"):
+                logger.info(
+                f"Persisted vacancy post channel={channel_id} message={message_id} "
+                f"contacts={len(result.get('contacts', []))} "
+                f"links={len(result.get('links', []))}"
+            )
 
         if notify_owner:
             await self._notify_vacancy(
@@ -142,9 +147,13 @@ class ChannelHandler:
                 links=result.get("links", []),
             )
 
+        result["sent_usernames"] = []
         if allow_outreach and channel_config.auto_outreach and self.llm_client:
-            await self._try_outreach(
-                post_text=text,
+            outreach_text = text
+            if embedded_urls:
+                outreach_text += "\n" + "\n".join(embedded_urls)
+            result["sent_usernames"] = await self._try_outreach(
+                post_text=outreach_text,
                 channel_id=channel_id,
                 max_per_hour=channel_config.max_posts_per_hour,
             )
