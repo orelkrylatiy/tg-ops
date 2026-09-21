@@ -272,3 +272,14 @@ async def test_channel_processor_feeds_embedded_telegram_contact_to_outreach(tmp
     assert result["sent_usernames"] == ["alice_hr"]
     outreach_text = handler._try_outreach.await_args.kwargs["post_text"]
     assert "https://t.me/alice_hr" in outreach_text
+
+
+def test_channel_keywords_support_database_string_and_legacy_list():
+    assert ChannelHandler._keywords(SimpleNamespace(keywords="python,frontend")) == [
+        "python",
+        "frontend",
+    ]
+    assert ChannelHandler._keywords(SimpleNamespace(keywords=["python", "frontend"])) == [
+        "python",
+        "frontend",
+    ]
