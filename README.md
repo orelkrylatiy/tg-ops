@@ -44,6 +44,8 @@ One process owns the Telethon session. MCP is embedded into that same asyncio da
 - Generate contextual replies with owner intent + configured persona/style
 - Send an explicitly requested message with audit logging
 - Monitor configured channels and extract `@username` / `t.me/...` contacts
+- Persist vacancy posts, recruiter contacts, emails and external application links in SQLite
+- Periodically catch up monitored channels with a durable per-channel cursor
 - Durable outreach deduplication and rate limiting in SQLite
 - DRAFT/AUTO/WATCH/OFF chat modes
 - Human-in-the-Loop approval through the control bot
@@ -138,6 +140,7 @@ For the complete MCP/tool/skill reference and natural-language examples, see [`d
 | `tg_generate_reply` | Generate a styled draft without sending; optional `instructions` describe owner intent |
 | `tg_scan_channel` | Read/filter recent channel posts |
 | `tg_list_configured_channels` | Inspect monitored-channel policy |
+| `tg_recent_vacancies` | Read persisted vacancies with extracted contacts and application links |
 | `tg_list_skills` | Discover named workflows |
 
 ### MCP action tools
@@ -278,21 +281,25 @@ Format:
 channel_id[:Title][:outreach][:keyword1,keyword2]
 ```
 
-Live channel flow:
+Vacancy tracking runs through one deduplicated ingestion path for both live events and periodic scans:
 
 ```text
-new channel post
-  -> SQLite channel config
-  -> enabled/keyword checks
-  -> notify owner
-  -> if auto_outreach is configured
-       -> extract contacts
-       -> SQLite dedup claim
+new/catch-up channel post
+  -> SQLite channel config + keyword checks
+  -> persist vacancy by (channel_id, message_id)
+  -> extract Telegram/email contacts
+  -> extract non-Telegram application URLs
+  -> live event: notify owner
+  -> if auto_outreach is configured and this is eligible for outreach
+       -> resolve target and require a human Telegram user
+       -> SQLite outreach dedup claim
        -> per-channel hourly limit
        -> internal LLM + shared style outreach draft
        -> Telegram send
        -> audit + sent state
 ```
+
+The autonomous scanner keeps a durable cursor per monitored channel. Its first bounded backfill stores history but does **not** send outreach unless `VACANCY_BACKFILL_OUTREACH=true`; later scans process only newer messages. Relevant settings are `VACANCY_SCANNER_ENABLED`, `VACANCY_SCAN_INTERVAL_SECONDS`, `VACANCY_INITIAL_SCAN_LIMIT` and `VACANCY_SCAN_BATCH_SIZE`.
 
 Manual MCP research does not imply sending. Bulk workflow sending requires `send=true`, and configured vacancy hunting only auto-sends for channels where `auto_outreach=true` is already persisted.
 
@@ -366,6 +373,10 @@ Main tables:
 - `GlobalState` — runtime state such as `agent_enabled`
 - `MonitoredChannel` — channel monitoring/outreach configuration
 - `OutreachContact` — durable outreach dedup/result/rate-limit data
+- `VacancyRecord` — persisted matching channel posts
+- `VacancyContact` — Telegram/email contacts extracted from a vacancy
+- `VacancyLink` — external application/company links extracted from a vacancy
+- `ChannelScanState` — durable last-seen message cursor per monitored channel
 
 ## Testing and linting
 
