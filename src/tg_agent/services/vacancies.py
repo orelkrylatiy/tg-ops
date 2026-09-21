@@ -14,7 +14,10 @@ _TELEGRAM_CONTACT_RE = re.compile(
     r"https?://(?:t\.me|telegram\.me)/(?P<link>[a-zA-Z0-9_]{4,32})\b)",
     re.IGNORECASE,
 )
-_EMAIL_RE = re.compile(r"(?<![\w.+-])([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})(?![\w.-])", re.IGNORECASE)
+_EMAIL_RE = re.compile(
+    r"(?<![\w.+-])([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})(?![\w@])",
+    re.IGNORECASE,
+)
 _URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 _TELEGRAM_HOSTS = {"t.me", "www.t.me", "telegram.me", "www.telegram.me"}
 
