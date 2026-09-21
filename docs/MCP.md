@@ -70,6 +70,7 @@ Verify the connection with Claude Code's MCP status/list command.
 | `tg_generate_reply` | Generate a styled contextual reply without sending; accepts optional owner `instructions` |
 | `tg_scan_channel` | Read/filter recent channel posts |
 | `tg_list_configured_channels` | Monitored channels and outreach policy |
+| `tg_recent_vacancies` | Persisted vacancy posts with extracted contacts and external links |
 | `tg_list_skills` | Discover reusable workflows |
 
 ### Actions
@@ -135,7 +136,7 @@ Call them through `tg_run_skill(name=..., params=...)`.
 | `vacancy_hunt` | Research all configured vacancy channels; `send=false` by default |
 | `recent_activity` | Read recent audited agent actions |
 
-`channel_outreach` and `vacancy_hunt` reuse the existing SQLite outreach deduplication/rate-limit path. Do not implement bulk outreach as a loop of raw `tg_send_message` calls.
+`channel_outreach` and `vacancy_hunt` reuse the existing SQLite outreach deduplication/rate-limit path. The daemon also maintains a persistent vacancy database from monitored channels, so use `tg_recent_vacancies` when you need already-discovered leads instead of rescanning Telegram. Do not implement bulk outreach as a loop of raw `tg_send_message` calls.
 
 ## Claude project skills
 
@@ -205,3 +206,10 @@ pytest -q --cov=tg_agent --cov-report=term-missing
 ```
 
 The MCP tests use the official in-memory MCP client, so tool discovery and invocation go through the MCP protocol layer without opening a TCP port.
+
+
+## Autonomous vacancy scanner
+
+When `VACANCY_SCANNER_ENABLED=true`, the main daemon periodically catches up every enabled monitored channel. A durable channel cursor prevents repeated historical scans, while the vacancy table deduplicates live-event and scanner ingestion by `(channel_id, message_id)`.
+
+The first scan is a bounded backfill controlled by `VACANCY_INITIAL_SCAN_LIMIT`. It stores matching vacancies, Telegram/email contacts and non-Telegram URLs. Historical outreach is off by default (`VACANCY_BACKFILL_OUTREACH=false`). Subsequent scans process only messages newer than the stored cursor and may use the channel's existing `auto_outreach` policy and hourly limit.

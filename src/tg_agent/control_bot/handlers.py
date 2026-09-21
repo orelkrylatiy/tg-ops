@@ -1,5 +1,7 @@
 """Command handlers for control bot."""
 
+import html
+from datetime import datetime, timedelta
 from typing import Any
 
 from aiogram import F, Dispatcher, Router, types
@@ -10,13 +12,15 @@ from tg_agent.config import Settings
 from tg_agent.control_bot import ControlBot
 from tg_agent.logging import get_logger
 from tg_agent.storage.db import Database
-from tg_agent.storage.models import ChatMode, MessageDirection
+from tg_agent.storage.models import ChatMode, MessageDirection, OutreachStatus
 from tg_agent.storage.repositories import (
     ChatSettingsRepo,
     GlobalStateRepo,
     MessageLogRepo,
     MonitoredChannelRepo,
+    OutreachContactRepo,
     PendingActionRepo,
+    VacancyRepo,
 )
 
 logger = get_logger(__name__)
@@ -54,6 +58,24 @@ def setup_control_handlers(
     @router.message(Command("status"))
     async def status_handler(message: types.Message) -> None:
         await cmd_status(message, db, settings)
+
+    @router.message(Command("stats"))
+    async def stats_handler(message: types.Message) -> None:
+        await cmd_stats(message, db, settings)
+
+    @router.message(Command("outreach"))
+    async def outreach_handler(
+        message: types.Message,
+        command: CommandObject | None = None,
+    ) -> None:
+        await cmd_outreach(message, db, _command_args(command))
+
+    @router.message(Command("vacancies"))
+    async def vacancies_handler(
+        message: types.Message,
+        command: CommandObject | None = None,
+    ) -> None:
+        await cmd_vacancies(message, db, _command_args(command))
 
     @router.message(Command("pause"))
     async def pause_handler(message: types.Message) -> None:
@@ -173,6 +195,8 @@ async def cmd_status(message: types.Message, db: Database, settings: Settings) -
         chat_repo = ChatSettingsRepo(session)
         pending_repo = PendingActionRepo(session)
         log_repo = MessageLogRepo(session)
+        outreach_repo = OutreachContactRepo(session)
+        vacancy_repo = VacancyRepo(session)
 
         # Get global state
         agent_enabled = global_repo.get_bool("agent_enabled", settings.agent_global_enabled)
@@ -181,6 +205,8 @@ async def cmd_status(message: types.Message, db: Database, settings: Settings) -
         # Get counts
         all_chats = chat_repo.get_all()
         pending_count = len(pending_repo.get_pending())
+        outreach_sent = outreach_repo.count_by_status(OutreachStatus.SENT)
+        vacancy_count = vacancy_repo.count()
 
         # Get recent activity
         last_message_log = log_repo.get_most_recent()
@@ -205,6 +231,8 @@ async def cmd_status(message: types.Message, db: Database, settings: Settings) -
             f"  • DRAFT: {mode_counts.get(ChatMode.DRAFT, 0)}\n"
             f"  • AUTO: {mode_counts.get(ChatMode.AUTO, 0)}\n"
             f"⏳ <b>Pending actions:</b> {pending_count}\n"
+            f"🎯 <b>Vacancies found:</b> {vacancy_count}\n"
+            f"✉️ <b>Outreach sent:</b> {outreach_sent}\n"
             f"🤖 <b>LLM Provider:</b> {settings.llm_provider}\n"
             f"📅 <b>Last activity:</b> {last_message_time.strftime('%Y-%m-%d %H:%M') if last_message_time else 'None'}\n"
             f"🤖 <b>Last agent reply:</b> "
@@ -212,6 +240,131 @@ async def cmd_status(message: types.Message, db: Database, settings: Settings) -
         )
 
         await message.answer(text, parse_mode="HTML")
+
+
+async def cmd_stats(
+    message: types.Message,
+    db: Database,
+    settings: Settings,
+) -> None:
+    """Show operational vacancy and outreach metrics."""
+    now = datetime.utcnow()
+    with db.get_sync_session() as session:
+        outreach_repo = OutreachContactRepo(session)
+        vacancy_repo = VacancyRepo(session)
+        channel_repo = MonitoredChannelRepo(session)
+
+        sent_total = outreach_repo.count_by_status(OutreachStatus.SENT)
+        sent_24h = outreach_repo.count_sent_since_any_channel(now - timedelta(hours=24))
+        sent_7d = outreach_repo.count_sent_since_any_channel(now - timedelta(days=7))
+        pending = outreach_repo.count_by_status(OutreachStatus.PENDING)
+        failed = outreach_repo.count_by_status(OutreachStatus.FAILED)
+        vacancies = vacancy_repo.count()
+        contacts = vacancy_repo.count_contacts()
+        links = vacancy_repo.count_links()
+        channels = len(channel_repo.get_all())
+
+    scanner_enabled = bool(getattr(settings, "vacancy_scanner_enabled", False))
+    interval = getattr(settings, "vacancy_scan_interval_seconds", None)
+    scanner_text = "ON" if scanner_enabled else "OFF"
+    if scanner_enabled and interval:
+        scanner_text += f" / {interval}s"
+
+    text = (
+        "📊 <b>Vacancy & Outreach Stats</b>\n\n"
+        f"📢 <b>Monitored channels:</b> {channels}\n"
+        f"🎯 <b>Vacancies stored:</b> {vacancies}\n"
+        f"👤 <b>Contacts extracted:</b> {contacts}\n"
+        f"🔗 <b>External links:</b> {links}\n\n"
+        f"✉️ <b>Successfully contacted:</b> {sent_total}\n"
+        f"  • last 24h: {sent_24h}\n"
+        f"  • last 7d: {sent_7d}\n"
+        f"⏳ <b>Outreach pending:</b> {pending}\n"
+        f"❌ <b>Outreach failed:</b> {failed}\n\n"
+        f"🔄 <b>Vacancy scanner:</b> {scanner_text}"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+
+async def cmd_outreach(message: types.Message, db: Database, args: str = "") -> None:
+    """Show successful outreach totals and recent recipients."""
+    try:
+        limit = int(args) if args else 10
+    except ValueError:
+        await message.answer("❌ Usage: /outreach [1-20]")
+        return
+    limit = max(1, min(limit, 20))
+
+    with db.get_sync_session() as session:
+        repo = OutreachContactRepo(session)
+        sent_total = repo.count_by_status(OutreachStatus.SENT)
+        recent = repo.get_recent_sent(limit=limit)
+
+        lines = [
+            "✉️ <b>Outreach</b>",
+            f"<b>Total successfully contacted:</b> {sent_total}",
+            "",
+        ]
+        if not recent:
+            lines.append("No successful outreach yet.")
+        else:
+            lines.append(f"<b>Latest {len(recent)}:</b>")
+            for contact in recent:
+                username = html.escape(contact.username)
+                sent_at = (
+                    contact.sent_at.strftime("%Y-%m-%d %H:%M")
+                    if contact.sent_at
+                    else "unknown"
+                )
+                lines.append(
+                    f"• @{username} — {sent_at} "
+                    f"(channel <code>{contact.channel_id}</code>)"
+                )
+
+    await message.answer("\n".join(lines), parse_mode="HTML")
+
+
+async def cmd_vacancies(message: types.Message, db: Database, args: str = "") -> None:
+    """Show recent persisted vacancies and extracted lead counts."""
+    try:
+        limit = int(args) if args else 5
+    except ValueError:
+        await message.answer("❌ Usage: /vacancies [1-10]")
+        return
+    limit = max(1, min(limit, 10))
+
+    with db.get_sync_session() as session:
+        repo = VacancyRepo(session)
+        vacancies = repo.get_recent(limit=limit)
+        total = repo.count()
+
+        lines = [
+            "🎯 <b>Vacancy Database</b>",
+            f"<b>Total stored:</b> {total}",
+            "",
+        ]
+        if not vacancies:
+            lines.append("No vacancies stored yet.")
+        else:
+            lines.append(f"<b>Latest {len(vacancies)}:</b>")
+            for vacancy in vacancies:
+                vacancy_id = vacancy.id
+                contacts = repo.get_contacts(vacancy_id) if vacancy_id is not None else []
+                links = repo.get_links(vacancy_id) if vacancy_id is not None else []
+                title = html.escape(vacancy.channel_title or str(vacancy.channel_id))
+                snippet = html.escape(" ".join(vacancy.text.split())[:120])
+                source = ""
+                if vacancy.source_link:
+                    source = (
+                        f" | <a href='{html.escape(vacancy.source_link, quote=True)}'>source</a>"
+                    )
+                lines.append(
+                    f"• <b>{title}</b>{source}\n"
+                    f"  {snippet}{'…' if len(vacancy.text) > 120 else ''}\n"
+                    f"  👤 {len(contacts)} contacts | 🔗 {len(links)} links"
+                )
+
+    await message.answer("\n".join(lines), parse_mode="HTML")
 
 
 async def cmd_pause(message: types.Message, db: Database) -> None:
@@ -476,7 +629,7 @@ async def cmd_scan_channel(
     args: str,
     channel_handler=None,
 ) -> None:
-    """Scan recent posts and optionally run configured per-channel outreach."""
+    """Scan recent posts through the same vacancy pipeline as live automation."""
     if not client:
         await message.answer("❌ Userbot client not available.")
         return
@@ -485,18 +638,14 @@ async def cmd_scan_channel(
         channels = MonitoredChannelRepo(session).get_all()
 
     if not channels:
-        # Legacy fallback for installs that still keep channels only in MONITORED_CHANNELS.
         channels = settings.channel_configs
-
     if not channels:
         await message.answer("❌ No monitored channels configured.")
         return
 
-    # Parse arguments: [limit] [ON|OFF]
     parts = args.strip().split()
     limit = 10
-    outreach_mode = None  # None/ON = use channel config, OFF = disable outreach
-
+    outreach_mode = None
     for part in parts:
         if part.isdigit():
             limit = max(1, min(int(part), 50))
@@ -505,75 +654,96 @@ async def cmd_scan_channel(
         elif part.upper() == "OFF":
             outreach_mode = False
 
-    # Outreach is always constrained by the channel's persisted auto_outreach flag.
-    # ON enables configured outreach; it must not turn monitor-only channels into DM sources.
-    base_outreach_available = channel_handler is not None and channel_handler.llm_client is not None
+    pipeline_available = channel_handler is not None
+    outreach_available = (
+        pipeline_available
+        and channel_handler.llm_client is not None
+        and outreach_mode is not False
+    )
 
     await message.answer(
         f"🔍 Сканирую {len(channels)} канал(ов), последние {limit} постов"
-        + (" + обработаю настроенный аутрич" if base_outreach_available and outreach_mode is not False else " (без аутрича)") + "..."
+        + (" + обработаю настроенный аутрич" if outreach_available else " (без аутрича)")
+        + "..."
     )
 
     total = 0
+    stored = 0
     outreach_count = 0
+
     for channel in channels:
-        channel_id = channel.channel_id
-        channel_keywords = [keyword.strip().lower() for keyword in (channel.keywords or [])]
-        if isinstance(channel.keywords, str):
-            channel_keywords = [keyword.strip().lower() for keyword in channel.keywords.split(",")]
-        channel_auto_outreach = bool(channel.auto_outreach)
+        channel_id = int(channel.channel_id)
         try:
             msgs = await client.get_messages(channel_id, limit=limit)
             chat = await client.get_entity(channel_id)
             title = getattr(chat, "title", f"Channel {channel_id}")
+            username = getattr(chat, "username", None)
 
             for msg in reversed(msgs):
-                if not msg.text:
+                if not getattr(msg, "text", None):
                     continue
 
-                if channel_keywords and not any(keyword in msg.text.lower() for keyword in channel_keywords):
+                if pipeline_available:
+                    result = await channel_handler._process_channel_message(
+                        message=msg,
+                        channel_config=channel,
+                        channel_title=title,
+                        channel_username=username,
+                        notify_owner=True,
+                        allow_outreach=outreach_mode is not False,
+                        process_existing=True,
+                    )
+                    if not result.get("matched"):
+                        continue
+                    total += 1
+                    stored += int(bool(result.get("created")))
+                    outreach_count += len(result.get("sent_usernames", []))
                     continue
 
-                # Truncate to 400 chars for cleaner view
-                preview_len = 400
-                text_preview = msg.text[:preview_len]
-                truncated = len(msg.text) > preview_len
+                keywords_value = getattr(channel, "keywords", None) or []
+                if isinstance(keywords_value, str):
+                    keywords = [
+                        keyword.strip().lower()
+                        for keyword in keywords_value.split(",")
+                        if keyword.strip()
+                    ]
+                else:
+                    keywords = [
+                        str(keyword).strip().lower()
+                        for keyword in keywords_value
+                        if str(keyword).strip()
+                    ]
+                if keywords and not any(
+                    keyword in msg.text.lower() for keyword in keywords
+                ):
+                    continue
 
-                # Build channel link (t.me/c/channel_id for private channels)
+                preview = html.escape(msg.text[:400])
+                truncated = len(msg.text) > 400
                 link_id = str(channel_id)
                 if link_id.startswith("-100"):
-                    link_id = link_id[4:]  # Remove -100 prefix
+                    link_id = link_id[4:]
                 channel_link = f"https://t.me/c/{link_id}/{msg.id}"
-
-                text = (
-                    f"{text_preview}"
-                    f"{'... (обрезано)' if truncated else ''}"
-                    f"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📢 <b>{title}</b> | <a href='{channel_link}'>оригинал</a>"
-                )
-
                 await control_bot.send_message(
                     chat_id=settings.owner_telegram_id,
-                    text=text,
+                    text=(
+                        f"{preview}{'... (обрезано)' if truncated else ''}"
+                        "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📢 <b>{html.escape(title)}</b> | "
+                        f"<a href='{channel_link}'>оригинал</a>"
+                    ),
                     parse_mode="HTML",
                 )
                 total += 1
 
-                do_outreach = (
-                    base_outreach_available
-                    and channel_auto_outreach
-                    and outreach_mode is not False
-                )
-                if do_outreach:
-                    before = len(channel_handler._contacted)
-                    await channel_handler._try_outreach(msg.text, channel_id)
-                    outreach_count += len(channel_handler._contacted) - before
+        except Exception as exc:
+            logger.exception(f"Manual channel scan failed for {channel_id}: {exc}")
+            await message.answer(f"❌ Ошибка при сканировании {channel_id}: {exc}")
 
-        except Exception as e:
-            await message.answer(f"❌ Ошибка при сканировании {channel_id}: {e}")
-
-    summary = f"✅ Переслано {total} постов."
-    if base_outreach_available and outreach_mode is not False:
+    summary = f"✅ Обработано {total} подходящих постов."
+    if pipeline_available:
+        summary += f" Новых записей в BD: {stored}."
+    if outreach_available:
         summary += f" Написал {outreach_count} новым контактам."
     await message.answer(summary)
 
@@ -602,7 +772,14 @@ async def cmd_help(message: types.Message) -> None:
         "<b>/start</b>\n"
         "  Запуск бота. Показывает приветственное сообщение.\n\n"
         "<b>/status</b>\n"
-        "  Показать полное состояние агента:\n"
+        "  Показать полное состояние агента, включая количество вакансий и отправленный outreach.\n\n"
+        "<b>/stats</b>\n"
+        "  Сводка по воронке вакансий: найденные вакансии, контакты, ссылки, успешный/pending/failed outreach, 24h/7d.\n\n"
+        "<b>/outreach [N]</b>\n"
+        "  Сколько контактов уже получили сообщения и последние N адресатов.\n\n"
+        "<b>/vacancies [N]</b>\n"
+        "  Последние N вакансий из локальной базы с количеством контактов и ссылок.\n\n"
+        "  Дополнительно /status показывает:\n"
         "  • Включён/выключен агент\n"
         "  • Режим по умолчанию\n"
         "  • Количество чатов по режимам (OFF/WATCH/DRAFT/AUTO)\n"

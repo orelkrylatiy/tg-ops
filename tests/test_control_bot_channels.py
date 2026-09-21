@@ -107,8 +107,16 @@ async def test_scan_channel_respects_channel_policy(tmp_path):
 
     channel_handler = MagicMock()
     channel_handler.llm_client = object()
-    channel_handler._contacted = set()
-    channel_handler._try_outreach = AsyncMock()
+
+    async def process_message(**kwargs):
+        channel = kwargs["channel_config"]
+        post = kwargs["message"]
+        if "python" not in post.text:
+            return {"matched": False, "created": False, "sent_usernames": []}
+        sent = ["alice_hr"] if channel.auto_outreach else []
+        return {"matched": True, "created": True, "sent_usernames": sent}
+
+    channel_handler._process_channel_message = AsyncMock(side_effect=process_message)
 
     settings = SimpleNamespace(owner_telegram_id=123456)
     await cmd_scan_channel(
@@ -121,6 +129,11 @@ async def test_scan_channel_respects_channel_policy(tmp_path):
         channel_handler,
     )
 
-    assert control_bot.send_message.await_count == 2
-    channel_handler._try_outreach.assert_awaited_once()
-    assert channel_handler._try_outreach.await_args.args[1] == -1002
+    assert channel_handler._process_channel_message.await_count == 4
+    calls = channel_handler._process_channel_message.await_args_list
+    assert all(call.kwargs["process_existing"] is True for call in calls)
+    assert all(call.kwargs["notify_owner"] is True for call in calls)
+    summary = message.answer.await_args_list[-1].args[0]
+    assert "Обработано 2 подходящих постов" in summary
+    assert "Новых записей в BD: 2" in summary
+    assert "Написал 1 новым контактам" in summary

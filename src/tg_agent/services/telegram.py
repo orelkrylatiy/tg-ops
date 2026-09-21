@@ -17,6 +17,7 @@ from tg_agent.storage.repositories import (
     GlobalStateRepo,
     MessageLogRepo,
     MonitoredChannelRepo,
+    VacancyRepo,
 )
 from tg_agent.userbot.sender import MessageSender
 
@@ -59,6 +60,7 @@ class TelegramService:
         with self.db.get_sync_session() as session:
             state_repo = GlobalStateRepo(session)
             channels = MonitoredChannelRepo(session).get_all()
+            vacancy_count = VacancyRepo(session).count()
             agent_enabled = state_repo.get_bool(
                 "agent_enabled",
                 self.settings.agent_global_enabled,
@@ -74,6 +76,7 @@ class TelegramService:
                 "first_name": getattr(me, "first_name", None),
             },
             "monitored_channels": len(channels),
+            "vacancies": vacancy_count,
         }
 
     async def list_dialogs(
@@ -291,6 +294,45 @@ class TelegramService:
             "username": getattr(entity, "username", None),
             "posts": posts,
         }
+
+    async def recent_vacancies(self, limit: int = 50) -> list[dict[str, Any]]:
+        with self.db.get_sync_session() as session:
+            repo = VacancyRepo(session)
+            vacancies = repo.get_recent(limit=limit)
+            result = []
+            for vacancy in vacancies:
+                if vacancy.id is None:
+                    continue
+                result.append(
+                    {
+                        "id": vacancy.id,
+                        "channel_id": vacancy.channel_id,
+                        "message_id": vacancy.message_id,
+                        "channel_title": vacancy.channel_title,
+                        "source_link": vacancy.source_link,
+                        "text": vacancy.text,
+                        "matched_keywords": (
+                            vacancy.matched_keywords.split(",")
+                            if vacancy.matched_keywords
+                            else []
+                        ),
+                        "posted_at": _iso(vacancy.posted_at),
+                        "discovered_at": _iso(vacancy.discovered_at),
+                        "contacts": [
+                            {
+                                "kind": contact.kind,
+                                "value": contact.value,
+                                "source_url": contact.source_url,
+                            }
+                            for contact in repo.get_contacts(vacancy.id)
+                        ],
+                        "links": [
+                            {"url": link.url, "domain": link.domain}
+                            for link in repo.get_links(vacancy.id)
+                        ],
+                    }
+                )
+        return result
 
     async def configured_channels(self) -> list[dict[str, Any]]:
         with self.db.get_sync_session() as session:

@@ -63,6 +63,9 @@ class ControlBot:
         await self.bot.set_my_commands([
             BotCommand(command="start",   description="Запустить бота"),
             BotCommand(command="status",  description="Статус агента"),
+            BotCommand(command="stats",   description="Статистика вакансий и аутрича"),
+            BotCommand(command="outreach", description="Кому и сколько написано"),
+            BotCommand(command="vacancies", description="Последние найденные вакансии"),
             BotCommand(command="pause",   description="Приостановить агента"),
             BotCommand(command="resume",  description="Возобновить агента"),
             BotCommand(command="chats",   description="Список активных чатов"),

@@ -20,6 +20,7 @@ def make_server(*, allow_writes=True):
     telegram.generate_reply = AsyncMock(return_value={"ok": True, "text": "draft"})
     telegram.scan_channel = AsyncMock(return_value={"channel_id": -1001, "posts": []})
     telegram.configured_channels = AsyncMock(return_value=[])
+    telegram.recent_vacancies = AsyncMock(return_value=[])
     telegram.send_message = AsyncMock(return_value={"ok": True, "message_id": 10})
     telegram.mark_read = AsyncMock(return_value={"ok": True})
 
@@ -49,6 +50,7 @@ async def test_mcp_lists_expected_tools():
         "tg_generate_reply",
         "tg_scan_channel",
         "tg_list_configured_channels",
+        "tg_recent_vacancies",
         "tg_list_skills",
         "tg_run_skill",
         "tg_send_message",
@@ -122,3 +124,18 @@ async def test_mcp_can_run_named_skill():
     assert result.is_error is False
     assert result.structured_content["ok"] is True
     skills.run.assert_awaited_once_with(name="unread_inbox", params={"limit": 5})
+
+
+@pytest.mark.asyncio
+async def test_mcp_recent_vacancies_calls_persisted_vacancy_service():
+    server, telegram, _ = make_server()
+    telegram.recent_vacancies.return_value = [
+        {"id": 1, "channel_id": -1001, "contacts": [], "links": []}
+    ]
+
+    async with Client(server, raise_exceptions=True) as client:
+        result = await client.call_tool("tg_recent_vacancies", {"limit": 25})
+
+    assert result.is_error is False
+    assert result.structured_content["result"][0]["id"] == 1
+    telegram.recent_vacancies.assert_awaited_once_with(limit=25)

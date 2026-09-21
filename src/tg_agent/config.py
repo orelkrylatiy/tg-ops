@@ -111,6 +111,21 @@ class Settings(BaseSettings):
     # Channel monitoring
     monitored_channels: str = Field(default="", alias="MONITORED_CHANNELS")
 
+    # Autonomous vacancy tracking
+    vacancy_scanner_enabled: bool = Field(default=True, alias="VACANCY_SCANNER_ENABLED")
+    vacancy_scan_interval_seconds: int = Field(
+        default=300, alias="VACANCY_SCAN_INTERVAL_SECONDS"
+    )
+    vacancy_initial_scan_limit: int = Field(
+        default=100, alias="VACANCY_INITIAL_SCAN_LIMIT"
+    )
+    vacancy_scan_batch_size: int = Field(
+        default=100, alias="VACANCY_SCAN_BATCH_SIZE"
+    )
+    vacancy_backfill_outreach: bool = Field(
+        default=False, alias="VACANCY_BACKFILL_OUTREACH"
+    )
+
     @property
     def monitored_channel_ids(self) -> list[int]:
         """Parse MONITORED_CHANNELS into list of int IDs (legacy format)."""
@@ -172,6 +187,20 @@ class Settings(BaseSettings):
     require_approval_for_money_or_commitments: bool = Field(
         default=True, alias="REQUIRE_APPROVAL_FOR_MONEY_OR_COMMITMENTS"
     )
+
+    @field_validator("vacancy_scan_interval_seconds")
+    @classmethod
+    def validate_vacancy_scan_interval(cls, v: int) -> int:
+        if not 60 <= v <= 86400:
+            raise ValueError("VACANCY_SCAN_INTERVAL_SECONDS must be between 60 and 86400")
+        return v
+
+    @field_validator("vacancy_initial_scan_limit", "vacancy_scan_batch_size")
+    @classmethod
+    def validate_vacancy_scan_limit(cls, v: int) -> int:
+        if not 1 <= v <= 500:
+            raise ValueError("vacancy scan limits must be between 1 and 500")
+        return v
 
     @field_validator("tg_api_id")
     @classmethod

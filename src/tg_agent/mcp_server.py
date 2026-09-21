@@ -148,6 +148,17 @@ def create_mcp_server(
         return await telegram.configured_channels()
 
     @mcp.tool(
+        name="tg_recent_vacancies",
+        description=(
+            "Return recently persisted vacancy posts with extracted Telegram/email "
+            "contacts and external application links."
+        ),
+        annotations=read_only,
+    )
+    async def tg_recent_vacancies(limit: int = 50) -> list[dict[str, Any]]:
+        return await telegram.recent_vacancies(limit=limit)
+
+    @mcp.tool(
         name="tg_list_skills",
         description="List reusable Telegram workflows exposed by agentTG.",
         annotations=read_only,
