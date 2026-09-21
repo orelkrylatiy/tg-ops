@@ -209,6 +209,7 @@ class ChannelHandler:
 
         First scan backfills a bounded history for storage. Historical outreach is
         disabled by default. Later scans read only messages newer than the cursor.
+        A failure in one configured channel does not block the remaining channels.
         """
         with self.db.get_sync_session() as session:
             agent_enabled = GlobalStateRepo(session).get_bool(
@@ -226,91 +227,110 @@ class ChannelHandler:
                 "vacancies_created": 0,
             }
 
-        created_total = 0
-        matched_total = 0
         channel_results: list[dict[str, Any]] = []
-
         for channel_config in channel_configs:
-            channel_id = int(channel_config.channel_id)
-            with self.db.get_sync_session() as session:
-                last_message_id = ChannelScanStateRepo(session).last_message_id(channel_id)
-
-            is_backfill = last_message_id <= 0
-            entity = await self.client.get_entity(channel_id)
-            channel_title = channel_config.channel_title or getattr(
-                entity, "title", f"Channel {channel_id}"
-            )
-            channel_username = getattr(entity, "username", None)
-
-            if is_backfill:
-                messages = list(
-                    await self.client.get_messages(
-                        channel_id,
-                        limit=self.settings.vacancy_initial_scan_limit,
-                    )
+            try:
+                channel_results.append(
+                    await self._scan_configured_channel(channel_config)
                 )
-                messages.reverse()
-            else:
-                messages = [
-                    message
-                    async for message in self.client.iter_messages(
-                        channel_id,
-                        min_id=last_message_id,
-                        reverse=True,
-                        limit=self.settings.vacancy_scan_batch_size,
-                    )
-                ]
-
-            highest_seen = last_message_id
-            channel_created = 0
-            channel_matched = 0
-            for message in messages:
-                message_id = getattr(message, "id", None)
-                if message_id is None:
-                    continue
-                highest_seen = max(highest_seen, int(message_id))
-                if not (getattr(message, "text", None) or "").strip():
-                    continue
-
-                result = await self._process_channel_message(
-                    message=message,
-                    channel_config=channel_config,
-                    channel_title=channel_title,
-                    channel_username=channel_username,
-                    notify_owner=False,
-                    allow_outreach=(
-                        not is_backfill or self.settings.vacancy_backfill_outreach
-                    ),
+            except Exception as exc:
+                channel_id = int(channel_config.channel_id)
+                logger.exception(
+                    f"Vacancy scan failed for channel {channel_id}: {exc}"
                 )
-                if result.get("matched"):
-                    channel_matched += 1
-                    matched_total += 1
-                if result.get("created"):
-                    channel_created += 1
-                    created_total += 1
-
-            if highest_seen > last_message_id:
-                with self.db.get_sync_session() as session:
-                    ChannelScanStateRepo(session).update(channel_id, highest_seen)
-
-            channel_results.append(
-                {
-                    "channel_id": channel_id,
-                    "backfill": is_backfill,
-                    "messages_seen": len(messages),
-                    "matching_posts": channel_matched,
-                    "vacancies_created": channel_created,
-                    "cursor": highest_seen,
-                }
-            )
+                channel_results.append(
+                    {
+                        "channel_id": channel_id,
+                        "ok": False,
+                        "error": str(exc),
+                        "messages_seen": 0,
+                        "matching_posts": 0,
+                        "vacancies_created": 0,
+                    }
+                )
 
         return {
-            "ok": True,
+            "ok": all(item.get("ok", True) for item in channel_results),
             "skipped": False,
             "channels": len(channel_results),
-            "matching_posts": matched_total,
-            "vacancies_created": created_total,
+            "matching_posts": sum(
+                int(item.get("matching_posts", 0)) for item in channel_results
+            ),
+            "vacancies_created": sum(
+                int(item.get("vacancies_created", 0)) for item in channel_results
+            ),
             "results": channel_results,
+        }
+
+    async def _scan_configured_channel(self, channel_config: Any) -> dict[str, Any]:
+        channel_id = int(channel_config.channel_id)
+        with self.db.get_sync_session() as session:
+            last_message_id = ChannelScanStateRepo(session).last_message_id(channel_id)
+
+        is_backfill = last_message_id <= 0
+        entity = await self.client.get_entity(channel_id)
+        channel_title = channel_config.channel_title or getattr(
+            entity, "title", f"Channel {channel_id}"
+        )
+        channel_username = getattr(entity, "username", None)
+
+        if is_backfill:
+            messages = list(
+                await self.client.get_messages(
+                    channel_id,
+                    limit=self.settings.vacancy_initial_scan_limit,
+                )
+            )
+            messages.reverse()
+        else:
+            messages = [
+                message
+                async for message in self.client.iter_messages(
+                    channel_id,
+                    min_id=last_message_id,
+                    reverse=True,
+                    limit=self.settings.vacancy_scan_batch_size,
+                )
+            ]
+
+        highest_seen = last_message_id
+        channel_created = 0
+        channel_matched = 0
+        for message in messages:
+            message_id = getattr(message, "id", None)
+            if message_id is None:
+                continue
+            highest_seen = max(highest_seen, int(message_id))
+            if not (getattr(message, "text", None) or "").strip():
+                continue
+
+            result = await self._process_channel_message(
+                message=message,
+                channel_config=channel_config,
+                channel_title=channel_title,
+                channel_username=channel_username,
+                notify_owner=False,
+                allow_outreach=(
+                    not is_backfill or self.settings.vacancy_backfill_outreach
+                ),
+            )
+            if result.get("matched"):
+                channel_matched += 1
+            if result.get("created"):
+                channel_created += 1
+
+        if highest_seen > last_message_id:
+            with self.db.get_sync_session() as session:
+                ChannelScanStateRepo(session).update(channel_id, highest_seen)
+
+        return {
+            "channel_id": channel_id,
+            "ok": True,
+            "backfill": is_backfill,
+            "messages_seen": len(messages),
+            "matching_posts": channel_matched,
+            "vacancies_created": channel_created,
+            "cursor": highest_seen,
         }
 
     async def _try_outreach(
