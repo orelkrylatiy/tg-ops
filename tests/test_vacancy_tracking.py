@@ -87,7 +87,10 @@ async def test_vacancy_tracker_skips_nonmatching_posts(tmp_path):
 
 @pytest.mark.asyncio
 async def test_channel_scanner_backfills_without_outreach_then_processes_new_posts(tmp_path):
-    db = Database(database_url=f"sqlite:///{tmp_path / 'agent.db'}")
+    db = Database(
+        database_url=f"sqlite:///{tmp_path / 'agent.db'}",
+        default_agent_enabled=True,
+    )
     await db.init_db()
     with db.get_sync_session() as session:
         MonitoredChannelRepo(session).add(
