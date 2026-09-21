@@ -10,8 +10,8 @@ from urllib.parse import urlparse
 from tg_agent.storage.repositories import VacancyRepo
 
 _TELEGRAM_CONTACT_RE = re.compile(
-    r"(?:(?<![\\w.+-])@(?P<at>[a-zA-Z0-9_]{4,32})\\b|"
-    r"https?://(?:t\\.me|telegram\\.me)/(?P<link>[a-zA-Z0-9_]{4,32})\\b)",
+    r"(?:(?<![\w.+-])@(?P<at>[a-zA-Z0-9_]{4,32})\b|"
+    r"https?://(?:t\.me|telegram\.me)/(?P<link>[a-zA-Z0-9_]{4,32})\b)",
     re.IGNORECASE,
 )
 _EMAIL_RE = re.compile(r"(?<![\w.+-])([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})(?![\w.-])", re.IGNORECASE)
