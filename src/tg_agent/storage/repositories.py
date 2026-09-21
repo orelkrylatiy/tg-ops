@@ -507,6 +507,33 @@ class OutreachContactRepo:
             ).all()
         )
 
+    def count_by_status(self, status: OutreachStatus) -> int:
+        return len(
+            self.session.exec(
+                select(OutreachContact).where(OutreachContact.status == status)
+            ).all()
+        )
+
+    def count_sent_since_any_channel(self, since: datetime) -> int:
+        return len(
+            self.session.exec(
+                select(OutreachContact).where(
+                    OutreachContact.status == OutreachStatus.SENT,
+                    OutreachContact.sent_at >= since,
+                )
+            ).all()
+        )
+
+    def get_recent_sent(self, limit: int = 10) -> list[OutreachContact]:
+        return list(
+            self.session.exec(
+                select(OutreachContact)
+                .where(OutreachContact.status == OutreachStatus.SENT)
+                .order_by(OutreachContact.sent_at.desc())
+                .limit(max(1, min(limit, 50)))
+            ).all()
+        )
+
 
 class VacancyRepo:
     """Persistence for discovered vacancies and their extracted metadata."""
@@ -625,6 +652,12 @@ class VacancyRepo:
 
     def count(self) -> int:
         return len(self.session.exec(select(VacancyRecord)).all())
+
+    def count_contacts(self) -> int:
+        return len(self.session.exec(select(VacancyContact)).all())
+
+    def count_links(self) -> int:
+        return len(self.session.exec(select(VacancyLink)).all())
 
 
 class ChannelScanStateRepo:
