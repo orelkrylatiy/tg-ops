@@ -1,7 +1,40 @@
 {
+  "active_profile": "react",
   "out_dir": "vacancies",
-  "min_salary": 300,
-  "days": 3,
-  "limit": 50,
-  "channels": []
+  "profiles": {
+    "react": {
+      "title": "React/TS frontend, ≥300к, RU+remote. Фронтенд-каналы, без чисто-backend и общих IT",
+      "days": 3,
+      "min_salary": 300,
+      "limit": 50,
+      "channels": [
+        "@job_react",
+        "@runello_rus_frontend",
+        "@runello_rus_javascript",
+        "@frontend_vakansii",
+        "@javascript_jobs_feed",
+        "@forfrontend",
+        "@JScript_jobs",
+        "@backend_frontend_jobs",
+        "@jsdevjob",
+        "@senior_frontender",
+        "@job_webdev",
+        "@javascriptjobjs",
+        "@frontend_rabota",
+        "@js_rabota",
+        "@YotolabFrontend",
+        "@JavaScript_Jobb",
+        "@FrontendPortal",
+        "@vacantcist",
+        "-1001782596777"
+      ]
+    },
+    "all": {
+      "title": "Все вакансионные подписки (включая Node.js и общие IT) — эвристика по имени канала",
+      "days": 3,
+      "min_salary": 300,
+      "limit": 50,
+      "channels": []
+    }
+  }
 }

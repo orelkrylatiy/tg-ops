@@ -1,6 +1,7 @@
 # Реестр ТГ-каналов с вакансиями — frontend, ≥300к ₽/мес, RU
 
-Обновлён: 18.09.2026. Аккаунт: tg-hr юзербот (`~/tg-agent-test`, @maxxwway).
+Обновлён: 23.09.2026. Аккаунт: tg-hr юзербот (`~/tg-ops`, @maxxwway).
+Машинный слой реестра — `sources.json` (`py sources.py harvest` / `show` / `sites`).
 
 Статусы:
 - ✅ — проверено (превью t.me/s/, живое)
@@ -63,18 +64,42 @@
 
 ## E. Подписки аккаунта юзербота
 
-Заполнено 20.09.2026 первым прогоном `py scan_jobs.py channels` (104 диалога, из них вакансионных 5):
+26 вакансионных каналов (прогон `py sources.py harvest` 23.09.2026, полные данные —
+`sources.json`: username, about, участники, сайты). Профили скана — в `config.json`
+(`react` = фронтенд-каналы без чисто-backend; `all` = все).
 
-| Канал | Что это |
-|---|---|
-| https://t.me/javascript_jobs_feed | «JavaScript Jobs — вакансии и резюме», лента-фид чата javascript_jobs |
-| https://t.me/senior_frontender | «Frontend — вакансии и стажировки», дайджесты youngjunior.ru |
-| https://t.me/FrontendPortal | «Frontend Portal», новости + вакансии |
-| «Frontend Jobs … [IT MATCH]» | вакансии с хэштегами, без публичного username (только в скане) |
-| «чатик вакансий» | приватный канал (без username) |
+| Канал | @username | участники | примечание |
+|---|---|---|---|
+| чатик вакансий | @vacantcist | 48.7к | общий, много фронтa |
+| Frontend Portal | @FrontendPortal | 36.6к | новости + вакансии |
+| IT Jobs \| Вакансии в IT | @devs_it | 18.7к | общие IT (в `all`) |
+| React Job \| JavaScript \| Вакансии | @job_react | 16.3к | ядро react |
+| Frontend Job Offers | @runello_rus_frontend | 15.9к | фид runello.ru |
+| Frontend \| Вакансии | @frontend_vakansii | 15.4к | |
+| Digital nomads. Work from anywhere | — (приват) | 15.4к | не IT, в скан не входит |
+| JavaScript Jobs — вакансии и резюме | @javascript_jobs_feed | 14.9к | фид чата javascript_jobs |
+| Job for Frontend (JavaScript + Node.js) | @forfrontend | 13.5к | |
+| JavaScript Job \| Вакансии \| Стажировки | @JScript_jobs | 12.4к | |
+| Node.js / TypeScript Job Offers | @runello_rus_typescript | 10.2к | node-клон runello (в `all`) |
+| JavaScript Job Offers | @runello_rus_javascript | 10.2к | |
+| Вакансии для разработчиков | @backend_frontend_jobs | 9.8к | витрина vseti.app |
+| Javascript jobs — по фронтенду | @jsdevjob | 9.6к | сеть tproger/proglibrary |
+| Frontend — вакансии и стажировки | @senior_frontender | 9.2к | дайджесты youngjunior.ru |
+| Frontend Jobs … [IT MATCH] | — (приват, id -1001782596777) | 7.9к | вакансии с хэштегами |
+| Работа — вёрстка и фронтенд | @job_webdev | 7.4к | |
+| Javascript Jobs | @javascriptjobjs | 5.5к | |
+| NodeJS Jobs канал вакансий и резюме | @nodejsjobsfeed | 3.5к | node (в `all`) |
+| FrontEnd_Jobs | @frontend_rabota | 3.3к | |
+| Вакансии - Node.js Jobs | @razrabotchik_rabotae | 2.5к | node (в `all`) |
+| Java Script Работа Вакансии (front) | @js_rabota | 2.1к | |
+| Frontend (JS,CSS,HTML) вакансии и работа | @YotolabFrontend | 2.1к | |
+| JavaScript_Jobs | @JavaScript_Jobb | 1.4к | |
+| Node.js \| Вакансии | @nodejs_vakansii | 0.7к | node (в `all`) |
+| JavaScript Jobs - Вакансии (new) | @javascript_jobs_feed_new | 55 | дубль фида javascript_jobs |
 
-Настройки скана — `config.json` (min_salary, days, limit, channels, out_dir);
-результаты падают в `vacancies/vacancies.jsonl` (база с дедупом) + `vacancies/digest-<дата>.md`.
+Сайты из описаний каналов и текстов вакансий — `py sources.py sites --from-vacancies
+--save` → `sources-sites.md` (карьерные страницы/АТС компаний: rabota.sber.ru,
+maxilect.ru, jobs.ashbyhq.com, career.habr.com…).
 
 ## F. Мёртвые / не подходят
 

@@ -24,8 +24,16 @@ py tg.py mark "Александра"   # отметить прочитанным
 
 ## Сканер вакансий
 
-`py scan_jobs.py scan` — дефолты (дни, мин. ЗП, каналы, папка) в `config.json`,
-результаты копятся в `vacancies/vacancies.jsonl` + дневной `vacancies/digest-*.md`.
-Подробнее — в докстринге scan_jobs.py и реестре job_channels.md.
+`py scan_jobs.py scan` — дефолты берутся из ПРОФИЛЯ поиска в `config.json`
+(`active_profile` + `profiles`; CLI-флаги сильнее профиля). Профиль = дни, мин. ЗП,
+лимит и список каналов (`@хэндлы` или числовые id для приватных без username).
+Результаты копятся в `vacancies/vacancies.jsonl` + дневной `vacancies/digest-*.md`.
 
-Файлы `userbot.session` и `phone.env` в git не попадают.
+## Реестр источников
+
+`py sources.py harvest` — обойти вакансионные подписки и обновить `sources.json`
+(username, about, участники, сайты из описаний; ручные поля tags/priority/status/notes
+не трогает). `py sources.py sites --from-vacancies --save` — вытащить уникальные
+сайты (описания каналов + тексты вакансий, группировка по доменам, без utm) в
+`sources-sites.md` — сырьё для браузер-агента (прямые карьерные страницы/АТС компаний).
+Человеческая документация — job_channels.md. Подробнее — в докстрингах.
