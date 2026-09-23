@@ -267,7 +267,7 @@ async def cmd_scan(client, args):
 
 
 async def cmd_find(client, args):
-    """Глобальный поиск по публичным постам ТГ."""
+    """Глобальный поиск по публичным постам ТГ: каналы-кандидаты на подписку."""
     result = await client(functions.messages.SearchGlobalRequest(
         q=args.query,
         filter=types.InputMessagesFilterEmpty(),
@@ -278,19 +278,27 @@ async def cmd_find(client, args):
         offset_id=0,
         limit=args.limit,
     ))
-    seen = set()
     chats = {c.id: c for c in getattr(result, "chats", [])}
+    sub_ids = set()      # id и marked (-100…), и сырые: поиск возвращает второй формат
+    async for d in client.iter_dialogs(limit=500):
+        if d.is_channel or d.is_group:
+            sub_ids.add(d.id)
+            ent_id = getattr(d.entity, "id", None)
+            if ent_id:
+                sub_ids.add(ent_id)
+    posts = {}                                # канал → первый найденный пост
     for m in result.messages:
         peer_id = m.peer_id.channel_id if isinstance(m.peer_id, types.PeerChannel) else None
         ch = chats.get(peer_id)
-        if not ch:
-            continue
-        key = ch.id
-        mark = "JOIN" if key in seen else "NEW"
-        seen.add(key)
+        if ch:
+            posts.setdefault(ch.id, (ch, m))
+    for ch, m in posts.values():
+        mark = "УЖЕ ЕСТЬ" if ch.id in sub_ids else "НОВЫЙ"
         uname = f"@{ch.username}" if getattr(ch, "username", None) else f"id={ch.id}"
         print(f"[{mark}] {uname} — {ch.title!r}")
         print(f"    {snippet(m.text, 200)}\n")
+    fresh = sum(1 for ch, _ in posts.values() if ch.id not in sub_ids)
+    print(f"Итого каналов: {len(posts)}, новых к подписке: {fresh}")
 
 
 async def cmd_join(client, args):

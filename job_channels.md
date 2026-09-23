@@ -103,8 +103,19 @@ maxilect.ru, jobs.ashbyhq.com, career.habr.com…).
 
 ## F. Мёртвые / не подходят
 
+Ревизия 23.09.2026 (`py verify_channels.py`, 48 хэндлов → 39 живых):
+
 | Канал | Почему |
 |---|---|
+| @js_vacancy | не существует (ValueError) |
+| @frontendwork, @reactjobs, @vuejobs | username не существует |
+| @vacancy_it, @it_rabota, @job_in_it | username не существует |
+| @remote_jobs, @webdev_chat | username не существует |
+| @frontend_vacancies | жив, 3 участника — пустой |
+| @it_vacancy | жив, 21 участник — пустой |
+| @javascript_vacancy | жив, 304 участника — почти пуст |
+| @devjobs | жив, 43.7к, но это **Game Development Jobs** — не наш стек |
 | ✅ https://t.me/frontend_vacancy | жив, но ~весь контент — Узбекистан (ayti_jobs, Ташкент, зарплаты в сумах). RU-remote проскакивает ($1000–1800 React/Next) — можно держать при желании, приоритет низкий |
 | ✅ https://t.me/frontend_jobs | жив, но 251 участник и превью пустое — почти мёртвый |
+| @remote_ru | жив, но «Премиум удалёнка» всего 1.1к участников — мало контента |
 | vc.ru «220 чатов и каналов» (2020) | статья стёрта, контента нет |
