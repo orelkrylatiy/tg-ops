@@ -390,6 +390,13 @@ async def cmd_outreach(client, args):
             sent += 1
             print("    OK, отправлено" + (" + резюме" if args.resume else ""))
         except Exception as e:
+            if "no user has" in str(e).lower():
+                # мёртвый юзернейм — вина лида, не сети: помечаем и идём дальше
+                r["status"] = "declined"
+                r["note"] = f"username не существует ({_now_iso()})"
+                save_store(store)
+                print("    !! юзернейм не существует → declined, продолжаю")
+                continue
             print(f"    !! не отправлено: {e}")
             break  # FloodWait/сеть — дальше не долбим, продолжится со следующего запуска
         if i < len(targets) - 1:
