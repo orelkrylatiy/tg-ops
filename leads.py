@@ -393,7 +393,7 @@ async def cmd_outreach(client, args):
             print(f"    !! не отправлено: {e}")
             break  # FloodWait/сеть — дальше не долбим, продолжится со следующего запуска
         if i < len(targets) - 1:
-            pause = random.randint(20, 45)
+            pause = random.randint(60, 120)  # минута-две между ЛС: не похоже на бота
             print(f"    пауза {pause}с…")
             time.sleep(pause)
     print(
