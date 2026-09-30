@@ -1,0 +1,46 @@
+#!/bin/sh
+# Pre-commit: автоформатирование staged Python-файлов — ruff format +
+# ruff check --fix, результат ре-стейджится. Коммит блокируется только если
+# после фиксов остались ошибки линтера или файл не парсится. Обход:
+# git commit --no-verify.
+#
+# Активация (один раз на клон):
+#   git config core.hooksPath githooks
+#
+# Нюанс: ruff правит рабочую копию. Если у файла застейджена только часть
+# правок (git add -p), ре-стейдж после форматирования заберёт и их — для
+# таких случаев коммитьте с --no-verify.
+set -u
+
+# Merge-коммиты не трогаем.
+[ -f "$(git rev-parse --git-dir)/MERGE_HEAD" ] && exit 0
+
+cd "$(git rev-parse --show-toplevel)" || exit 0
+
+# Приоритет — ruff, зафиксированный в uv.lock (совпадает с CI); без lock —
+# глобальный ruff. Нет ни того, ни другого — коммит не блокируем.
+if command -v uv >/dev/null 2>&1 && [ -f uv.lock ] \
+   && uv run --no-sync ruff --version >/dev/null 2>&1; then
+    RUFF="uv run --no-sync ruff"
+elif command -v ruff >/dev/null 2>&1; then
+    RUFF="ruff"
+else
+    echo "pre-commit: ruff не найден — автоформат пропущен" >&2
+    exit 0
+fi
+
+PY_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- '*.py')
+[ -n "$PY_FILES" ] || exit 0
+
+# --force-exclude: уважать exclude из конфига даже для явно переданных файлов.
+echo "$PY_FILES" | tr '\n' '\0' | xargs -0 $RUFF format --force-exclude || exit 1
+
+if ! echo "$PY_FILES" | tr '\n' '\0' | xargs -0 $RUFF check --fix --force-exclude; then
+    echo "pre-commit: остались неисправимые ошибки ruff — коммит заблокирован." >&2
+    echo "pre-commit: исправь вручную или закоммить с --no-verify." >&2
+    exit 1
+fi
+
+echo "$PY_FILES" | tr '\n' '\0' | xargs -0 git add --
+echo "pre-commit: staged .py отформатированы (ruff format + check --fix)"
+exit 0
