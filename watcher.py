@@ -1,6 +1,9 @@
 """Сенсор tg-hr: проверяет непрочитанные личные чаты, шлёт тост-уведомления Windows
 и складывает новые входящие в inbox.jsonl (очередь для Claude-крона).
 
+Тосты — один на чат за проход (свежие сообщения при этом все уходят в очередь);
+служебный чат «Telegram» (коды входа) не тостится и в очередь не попадает.
+
 Запуск:
   py watcher.py            — один проход (для Task Scheduler, каждые 5 мин)
   py watcher.py --loop     — демоном, каждые 5 мин
@@ -18,7 +21,7 @@ import subprocess
 import sys
 import time
 
-from tgcommon import HERE, connect_any
+from tgcommon import HERE, SERVICE_CHAT_IDS, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -63,11 +66,13 @@ async def scan(client):
     dialogs = [
         d
         for d in await client.get_dialogs(limit=50)
-        if not d.is_group and not d.is_channel and d.unread_count
+        if not d.is_group and not d.is_channel and d.unread_count and d.id not in SERVICE_CHAT_IDS
     ]
     for d in dialogs:
         last_id = state.get(str(d.id), 0)
-        msgs = await client.get_messages(d.entity, limit=5)
+        # окно с запасом: если набежало больше сообщений, чем влезло, старые
+        # потерялись бы молча (state прыгнул бы на самое свежее)
+        msgs = await client.get_messages(d.entity, limit=20)
         fresh = [m for m in msgs if not m.out and m.id > last_id and (m.text or "").strip()]
         if not fresh:
             state.setdefault(str(d.id), max([m.id for m in msgs] or [0]))
@@ -83,7 +88,11 @@ async def scan(client):
                     "text": text,
                 }
             )
-            toast(f"ТГ: {d.name}", text)
+        # один тост на чат за проход: в очередь ушли все, тост не дублируем.
+        # get_messages возвращает свежие первыми → fresh[0] — последнее сообщение
+        text = (fresh[0].text or "").replace("\n", " ")[:200]
+        label = f"[{len(fresh)} новых] " if len(fresh) > 1 else ""
+        toast(f"ТГ: {d.name}", label + text)
         state[str(d.id)] = max(m.id for m in fresh)
     if new_items:
         for item in new_items:

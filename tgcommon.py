@@ -19,6 +19,11 @@ PROXY = {"proxy_type": "socks5", "addr": "127.0.0.1", "port": 10808}
 # короткие ретраи: не подвисать на минуту, как дефолтный Telethon
 _CONN_KW = dict(timeout=15, request_retries=1, connection_retries=1, retry_delay=1)
 
+# Служебный чат «Telegram» (коды входа, логи безопасности) — не переписка:
+# в очередь watcher'а и выборку unread не включаем, иначе коды 2FA тостятся и
+# попадают в очередь ответов наравне с живыми людьми.
+SERVICE_CHAT_IDS = {777000}
+
 
 def load_phone():
     with open(os.path.join(HERE, "phone.env"), encoding="utf-8") as fh:
