@@ -13,8 +13,8 @@
   py leads.py show [--type username|invite|url] [--status new|contacted|...] [-n 50]
                                   — юзернеймы/ссылки/инвайты врозь, с источником
   py leads.py set VALUE STATUS [note]   — сменить статус вручную
-  py leads.py outreach --text "привет, ..." [--resume resume.pdf] [--limit 5]
-                                  [--dry-run] — написать новым лидам-юзернеймам
+  py leads.py outreach --map texts.json [--resume resume.pdf] [--dry-run]
+                                  — индивидуальный текст каждому (JSON: @лид → текст)
 """
 
 import argparse
@@ -347,21 +347,43 @@ def cmd_set(client, args):  # client не нужен: база локальна�
 
 
 async def cmd_outreach(client, args):
-    if not args.text and not args.text_file:
-        print('Нужен текст сообщения: --text "..." или --text-file msg.txt')
+    # texts — индивидуальный текст на каждого: {@value: текст}; задаю их я (агент),
+    # сочиняя под контекст конкретного лида. Никаких общих шаблонов.
+    texts = None
+    if args.map:
+        with open(args.map, encoding="utf-8") as fh:
+            texts = json.load(fh)
+        texts = {(k.lower() if k.startswith("@") else f"@{k.lower()}"): v for k, v in texts.items()}
+    elif not args.text and not args.text_file:
+        print('Нужен текст: --text "...", --text-file msg.txt или --map texts.json')
         sys.exit(3)
-    text = args.text or open(args.text_file, encoding="utf-8").read()
+
     if args.resume and not os.path.exists(args.resume):
         print(f"Резюме не найдено: {args.resume}")
         sys.exit(3)
 
     store = load_store()
-    targets = [r for r in store.values() if r["type"] == "username" and r["status"] == "new"]
-    if args.include:  # точечная отправка конкретному лиду (даже если уже писали)
-        want = {v.lower() for v in args.include}
+    if texts is not None:
+        # --map: только новые лиды, каждому свой текст — повторная отправка исключена
         targets = [
-            r for r in store.values() if r["type"] == "username" and r["value"].lower() in want
+            r
+            for r in store.values()
+            if r["type"] == "username" and r["status"] == "new" and r["value"] in texts
         ]
+        found = {r["value"] for r in targets}
+        for miss in sorted(set(texts) - found):
+            r = next(
+                (x for x in store.values() if x["type"] == "username" and x["value"] == miss),
+                None,
+            )
+            print(f"пропуск {miss}: " + ("нет в базе" if r is None else f"статус {r['status']}"))
+    else:
+        targets = [r for r in store.values() if r["type"] == "username" and r["status"] == "new"]
+        if args.include:  # точечная отправка конкретному лиду (даже если уже писали)
+            want = {v.lower() for v in args.include}
+            targets = [
+                r for r in store.values() if r["type"] == "username" and r["value"].lower() in want
+            ]
     targets.sort(key=lambda r: r["last_seen"], reverse=True)
     targets = targets[: args.limit]
     if not targets:
@@ -373,14 +395,19 @@ async def cmd_outreach(client, args):
     sent = 0
     for i, r in enumerate(targets):
         to = r["value"].lstrip("@")
+        body = (
+            texts[r["value"]]
+            if texts is not None
+            else (args.text or open(args.text_file, encoding="utf-8").read())
+        )
         print(f"--- {r['value']} (из {r['source_channel']}, {r['source_date']})")
-        print(f"    {text[:120]}")
+        print(f"    {body[:120]}")
         if args.dry_run:
             print("    [dry-run] пропущено")
             continue
         try:
             ent = await client.get_entity(to)
-            await client.send_message(ent, text)
+            await client.send_message(ent, body)
             if args.resume:
                 await client.send_file(ent, args.resume, caption="")
             r["status"] = "contacted"
@@ -434,6 +461,11 @@ def main():
     sp = sub.add_parser("outreach", help="написать новым лидам (+ резюме файлом)")
     sp.add_argument("--text", default=None, help="текст сообщения")
     sp.add_argument("--text-file", default=None, help="…или файл с текстом")
+    sp.add_argument(
+        "--map",
+        default=None,
+        help="JSON {@лид: текст} — индивидуальный текст каждому (предпочтительный режим)",
+    )
     sp.add_argument("--resume", default=None, help="путь к PDF резюме (приложить)")
     sp.add_argument("--limit", type=int, default=5, help="макс. получателей за прогон")
     sp.add_argument("--include", nargs="*", default=None, help="точечно: значения лидов")
