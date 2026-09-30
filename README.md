@@ -27,8 +27,15 @@ py tg.py mark "Александра"   # отметить прочитанным
 
 `py scan_jobs.py scan` — дефолты берутся из ПРОФИЛЯ поиска в `config.json`
 (`active_profile` + `profiles`; CLI-флаги сильнее профиля). Профиль = дни, мин. ЗП,
-лимит и список каналов (`@хэндлы` или числовые id для приватных без username).
-Результаты копятся в `vacancies/vacancies.jsonl` + дневной `vacancies/digest-*.md`.
+лимит, `remote_only` и список каналов (`@хэндлы` или числовые id для приватных без
+username). Результаты копятся в `vacancies/vacancies.jsonl` + дневной `vacancies/digest-*.md`.
+Шум отсекается сам: посты-«резюме» кандидатов, обзоры рынка; `remote_only: true` —
+офисные/городские посты без упоминания удалёнки.
+
+`py scan_jobs.py push [-n 20]` (или `scan --push`) — разослать находки карточками
+себе в Избранное (канал, дата, ЗП/стек, ссылка, текст) — доставка в духе CorgiWork.
+Дедуп по `vacancies/pushed.json`: можно гнать по расписанию, повторов не будет;
+неотправленное остаётся непомеченным и уйдёт в следующий прогон.
 
 ## Лиды и рассылка
 
@@ -43,7 +50,8 @@ py tg.py mark "Александра"   # отметить прочитанным
 py leads.py scan [--limit 500] [--profile react | --channels @a @b]   # глубокий скан истории
 py leads.py show [--type username|invite|url] [--status new] [-n 50]  # что нашлось
 py leads.py set @user contacted "ответил"                             # статус вручную
-py leads.py outreach --text "привет..." --resume resume.pdf --limit 5 # рассылка (сначала --dry-run)
+py leads.py post @user                       # полный текст вакансии-источника лида
+py leads.py outreach --map texts.json --resume resume.pdf             # свой текст каждому (сначала --dry-run)
 ```
 
 `py scan_jobs.py scan` тоже попутно собирает лиды из каждого прочитанного поста.
