@@ -9,6 +9,9 @@
   py tg.py me                    — кто залогинен
 
 <chat> — подстрока имени или числовой id.
+send откажется писать в чат, где последнее сообщение уже наше (правило
+«наше последнее — не пишем»: не долбим молчащий тред); поверх — --force.
+Служебный чат «Telegram» (коды входа) в unread не показывается.
 Секреты (phone.env, userbot.session) в git не попадают — см. .gitignore.
 """
 
@@ -17,7 +20,7 @@ import asyncio
 import os
 import sys
 
-from tgcommon import connect_any, load_phone
+from tgcommon import SERVICE_CHAT_IDS, connect_any, load_phone
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -113,6 +116,13 @@ async def cmd_send(client, args):
     if not d:
         print(f"Чат {args.chat!r} не найден")
         sys.exit(3)
+    last = await client.get_messages(d.entity, limit=1)
+    if last and last[0].out and not args.force:
+        print(
+            f"стоп: последнее сообщение в {d.name!r} наше — не пишем "
+            f"(правило «наше последнее — не пишем»; если правда нужно — --force)"
+        )
+        sys.exit(4)
     await client.send_message(d.entity, args.text)
     print(f"OK → {d.name!r}: {args.text[:100]}")
 
@@ -169,6 +179,11 @@ def main():
     sp = sub.add_parser("send")
     sp.add_argument("chat")
     sp.add_argument("text")
+    sp.add_argument(
+        "--force",
+        action="store_true",
+        help="писать даже если последнее сообщение в чате наше (follow-up и т.п.)",
+    )
     sp.set_defaults(fn=cmd_send)
 
     sp = sub.add_parser("sendfile")
@@ -192,7 +207,10 @@ def main():
                 dialogs = [
                     d
                     for d in await client.get_dialogs(limit=50)
-                    if not d.is_group and not d.is_channel and d.unread_count
+                    if not d.is_group
+                    and not d.is_channel
+                    and d.unread_count
+                    and d.id not in SERVICE_CHAT_IDS
                 ]
                 dialogs.sort(key=lambda d: -(d.date.timestamp() if d.date else 0))
                 if not dialogs:
