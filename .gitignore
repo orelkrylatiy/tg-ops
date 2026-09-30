@@ -14,5 +14,6 @@ outreach-*.md
 
 # секреты локального окружения
 .env
+llm.env
 resume.pdf
 outreach-*.json

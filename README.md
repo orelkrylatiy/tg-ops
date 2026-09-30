@@ -51,8 +51,19 @@ py leads.py scan [--limit 500] [--profile react | --channels @a @b]   # глуб
 py leads.py show [--type username|invite|url] [--status new] [-n 50]  # что нашлось
 py leads.py set @user contacted "ответил"                             # статус вручную
 py leads.py post @user                       # полный текст вакансии-источника лида
+py humanize.py [-n 5] [--leads @a @b]        # карта персональных текстов (humanizer-framework)
+py humanize.py @user                         # один текст в stdout, быстро посмотреть
 py leads.py outreach --map texts.json --resume resume.pdf             # свой текст каждому (сначала --dry-run)
 ```
+
+`humanize.py` — тот же humanizer-framework, что в profi-worker (домен job_search,
+канал telegram): генерит текст под конкретную вакансию голосом Макса, прогоняет
+через свои валидаторы + LLM-грейдер. Сам ничего не отправляет — пишет карту
+`outreach-humanize.json`, отправка — `outreach --map` после просмотра. LLM — как
+в profi-worker: по умолчанию anthropic-протокол z.ai (`ANTHROPIC_AUTH_TOKEN` →
+`api.z.ai/api/anthropic`, glm-5.3-flash, thinking выключен), ключи/токен из env
+или `llm.env`, при лимите перебор цепочки. Запасные: `--provider glm`
+(OpenAI-протокол, другой пул квот) и `--provider claude` (локальный claude CLI).
 
 `py scan_jobs.py scan` тоже попутно собирает лиды из каждого прочитанного поста.
 
