@@ -7,6 +7,7 @@
       "days": 3,
       "min_salary": 300,
       "limit": 50,
+      "remote_only": true,
       "channels": [
         "@job_react",
         "@runello_rus_frontend",

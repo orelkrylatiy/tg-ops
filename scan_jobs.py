@@ -2,14 +2,18 @@
 
 Команды:
   py scan_jobs.py channels [--limit 500]   — все каналы/группы + эвристика «вакансионный?»
-  py scan_jobs.py scan [--days 3] [-n 50] [--all] [--min-salary 300]
+  py scan_jobs.py scan [--days 3] [-n 50] [--all] [--min-salary 300] [--remote-only] [--push]
                                            — вакансии из вакансионных каналов за N дней
+  py scan_jobs.py push [-n 20]             — непушенные вакансии из базы карточками в Избранное
   py scan_jobs.py find QUERY              — глобальный поиск по ТГ (каналы-кандидаты на подписку)
   py scan_jobs.py join @handle|t.me/ссылка — подписаться на канал из реестра job_channels.md
 
-Дефолты scan (дни, ЗП, лимит, каналы, out_dir) — в config.json по ПРОФИЛЯМ поиска
-(active_profile + profiles; CLI-флаги сильнее профиля); находки дописываются
+Дефолты scan (дни, ЗП, лимит, каналы, out_dir, remote_only) — в config.json по ПРОФИЛЯМ
+поиска (active_profile + profiles; CLI-флаги сильнее профиля); находки дописываются
 в <out_dir>/vacancies.jsonl (база, дедуп) и <out_dir>/digest-<дата>.md (лог прогонов).
+Шум отсекается: посты-«резюме» кандидатов и (remote_only) офис/город без упоминания
+удалёнки. `--push` (или команда push) шлёт находки карточками в Избранное, дедуп по
+<out_dir>/pushed.json — можно гнать по расписанию, повторов не будет.
 Реестр каналов с юзернеймами/сайтами — sources.json (`py sources.py harvest`).
 """
 
@@ -50,6 +54,24 @@ STACK_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Шум: посты-«резюме» кандидатов (сами ищут работу), сатирические обзоры рынка — не вакансии
+NOISE_POST_RE = re.compile(
+    r"^\W{0,6}(?:резюме|resume)\b|ищ\w+ работу|open\s*to\s*work|обзор за \d",
+    re.IGNORECASE,
+)
+
+# Признак удалёнки vs офиса (для remote_only в профиле)
+REMOTE_RE = re.compile(
+    r"удал[её]н|remote|дистанц|из любой точки|работ[аи]\s+из\s+дому?",
+    re.IGNORECASE,
+)
+OFFICE_RE = re.compile(
+    r"\bофис\w*|гибрид\w*|в\s+офисе?\b|"
+    r"москв\w|мск\b|санкт-петербург\w*|спб\b|нижн\w+ новгород\w*|новосибирск\w*|"
+    r"екатеринбург\w*|казан\w+",
+    re.IGNORECASE,
+)
+
 SALARY_RE = re.compile(
     r"(от\s*\d[\d\s]{0,8}(?:000|\s?к|k)|(?:\d[\d\s]{0,8})\s*[–—-]\s*(\d[\d\s]{0,8})\s*(?:000|к|k)|"
     r"\d{3}\s?000|от\s*\d{2,3}\s?к\b|\d{2,3}к?\s*[–—-]\s*\d{2,3}\s?к)",
@@ -74,6 +96,7 @@ PROFILE_DEFAULTS = {
     "limit": 50,
     "out_dir": "vacancies",
     "channels": [],
+    "remote_only": False,
 }
 
 
@@ -154,6 +177,80 @@ def save_findings(out_dir, rows, note=""):
 def snippet(text, n=400):
     t = re.sub(r"\s+", " ", text or "").strip()
     return t[:n] + ("…" if len(t) > n else "")
+
+
+def card_text(r):
+    """Карточка вакансии для Избранного (в духе CorgiWork: заголовок, ЗП/стек, ссылка, текст)."""
+    parts = [f"💼 {r['chat']} · {r['date']}"]
+    tags = []
+    if r.get("salary_min"):
+        tags.append(f"от {r['salary_min'] // 1000}к")
+    if r.get("stack"):
+        tags.append("стек: " + ", ".join(r["stack"][:5]))
+    if tags:
+        parts.append("💰 " + " · ".join(tags))
+    if r.get("link"):
+        parts.append(r["link"])
+    parts.append("")
+    parts.append(snippet(r["text"], 500))
+    return "\n".join(parts)
+
+
+def load_pushed(out_dir):
+    path = os.path.join(out_dir, "pushed.json")
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                return set(json.load(fh))
+        except Exception:
+            pass
+    return set()
+
+
+def save_pushed(out_dir, keys):
+    with open(os.path.join(out_dir, "pushed.json"), "w", encoding="utf-8") as fh:
+        json.dump(sorted(keys), fh, ensure_ascii=False)
+
+
+async def push_rows(client, out_dir, rows):
+    """Отправить карточки в Избранное, дедуп по pushed.json (не помечаем неотправленное)."""
+    if not rows:
+        print("Пушить нечего — новых вакансий нет")
+        return
+    pushed = load_pushed(out_dir)
+    sent = 0
+    for r in rows:
+        key = f"{r['chat_id']}:{r['msg_id']}"
+        if key in pushed:
+            continue
+        try:
+            await client.send_message("me", card_text(r), parse_mode=None)
+        except Exception as e:
+            print(f"!! не отправлено {key}: {e}")
+            continue
+        pushed.add(key)
+        save_pushed(out_dir, pushed)
+        sent += 1
+        await asyncio.sleep(1.1)
+    print(f"Отправлено карточек в Избранное: {sent}")
+
+
+async def cmd_push(client, args):
+    """Разослать ещё не отправленные вакансии из базы карточками в Избранное."""
+    rows = []
+    path = os.path.join(args.out_dir, "vacancies.jsonl")
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    rows.append(json.loads(line))
+                except Exception:
+                    pass
+    pushed = load_pushed(args.out_dir)
+    fresh = [r for r in rows if f"{r['chat_id']}:{r['msg_id']}" not in pushed]
+    fresh.reverse()  # свежие первыми
+    print(f"К пушу: {len(fresh)} из {len(rows)} (лимит {args.n})")
+    await push_rows(client, args.out_dir, fresh[: args.n])
 
 
 async def fetch_messages(client, entity, limit, since=None):
@@ -264,6 +361,14 @@ async def cmd_scan(client, args):
                     pass
             if not text or not VACANCY_TEXT_RE.search(text):
                 continue
+            if NOISE_POST_RE.search(text):  # пост кандидата/обзор рынка, не вакансия
+                continue
+            if (
+                getattr(args, "remote_only", False)
+                and not REMOTE_RE.search(text)
+                and OFFICE_RE.search(text)
+            ):
+                continue  # явно офис/город, про удалёнку ни слова
             stack = STACK_RE.findall(text)
             sal = parse_salary_min(text)
             ok_stack = bool(stack)
@@ -301,6 +406,8 @@ async def cmd_scan(client, args):
     new = save_findings(args.out_dir, rows, note=f"профиль {args.profile}")
     print(f"Сохранено: {len(new)} новых записей → {args.out_dir}/vacancies.jsonl + digest")
     print(f"Итого подходящих вакансий: {found}")
+    if getattr(args, "push", False):
+        await push_rows(client, args.out_dir, new)
 
 
 async def cmd_find(client, args):
@@ -380,8 +487,24 @@ def main():
         default=None,
         help="явный список @хэндлов/t.me-ссылок/id (иначе — из профиля или эвристика по подпискам)",
     )
+    sp.add_argument(
+        "--remote-only",
+        action="store_true",
+        default=None,
+        help="отсеивать явно офисные/городские вакансии без упоминания удалёнки",
+    )
+    sp.add_argument(
+        "--push",
+        action="store_true",
+        help="после скана отправить найденное карточками в Избранное",
+    )
     sp.add_argument("--limit", type=int, default=500)
     sp.set_defaults(fn=cmd_scan)
+
+    sp = sub.add_parser("push", help="разослать непушенные вакансии карточками в Избранное")
+    sp.add_argument("-n", type=int, default=20, help="максимум карточек за раз")
+    sp.add_argument("--out-dir", default=None)
+    sp.set_defaults(fn=cmd_push)
 
     sp = sub.add_parser("find")
     sp.add_argument("query")
@@ -400,6 +523,8 @@ def main():
             if getattr(args, k, None) is None:
                 setattr(args, k, prof[k])
         args.title = prof["title"]
+    elif args.cmd == "push":
+        args.out_dir = args.out_dir or cfg.get("out_dir") or PROFILE_DEFAULTS["out_dir"]
 
     async def run():
         client = await connect_any()
