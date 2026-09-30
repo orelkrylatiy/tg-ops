@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Сканер вакансий по ТГ-каналам (юзербот tg-hr слота).
 
 Команды:
@@ -13,13 +12,14 @@
 в <out_dir>/vacancies.jsonl (база, дедуп) и <out_dir>/digest-<дата>.md (лог прогонов).
 Реестр каналов с юзернеймами/сайтами — sources.json (`py sources.py harvest`).
 """
+
 import argparse
 import asyncio
 import json
 import os
 import re
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 from telethon import functions, types
@@ -67,14 +67,20 @@ def load_config():
     return {}
 
 
-PROFILE_DEFAULTS = {"days": 3, "min_salary": 300, "limit": 50, "out_dir": "vacancies", "channels": []}
+PROFILE_DEFAULTS = {
+    "days": 3,
+    "min_salary": 300,
+    "limit": 50,
+    "out_dir": "vacancies",
+    "channels": [],
+}
 
 
 def resolve_profile(cfg, name):
     """Слить конфиг профиля поверх legacy-плоских ключей. CLI-флаги применяются позже."""
     prof = dict(PROFILE_DEFAULTS)
     for k in PROFILE_DEFAULTS:
-        if cfg.get(k) is not None:          # legacy-плоские ключи config.json
+        if cfg.get(k) is not None:  # legacy-плоские ключи config.json
             prof[k] = cfg[k]
     prof.update((cfg.get("profiles") or {}).get(name) or {})
     prof.setdefault("title", f"профиль {name!r} не найден в config.json — базовые дефолты")
@@ -90,9 +96,10 @@ def parse_salary_min(text):
         num = int(m.group(1).replace(" ", ""))
         mins.append(num * 1000 if num < 1000 else num)
     # диапазон «250 000 – 400 000» / «250–400к»
-    for m in re.finditer(r"(\d[\d\s]{0,8})\s*[–—-]\s*(\d[\d\s]{0,8})\s*(000|к|k)", t, re.IGNORECASE):
+    for m in re.finditer(
+        r"(\d[\d\s]{0,8})\s*[–—-]\s*(\d[\d\s]{0,8})\s*(000|к|k)", t, re.IGNORECASE
+    ):
         a = int(m.group(1).replace(" ", ""))
-        b = int(m.group(2).replace(" ", ""))
         if a < 1000:
             a *= 1000
         mins.append(a)
@@ -170,11 +177,11 @@ async def cmd_channels(client, args):
         else:
             rest.append(row)
     print(f"=== ВАКАНСИОННЫЕ (по имени) — {len(jobs)} ===")
-    for d, why in jobs:
+    for d, _ in jobs:
         uname = f"@{d.entity.username}" if getattr(d.entity, "username", None) else "—"
         print(f"  id={d.id} {uname:<30} {d.name!r}")
     print(f"\n=== ВОЗМОЖНО — {len(maybe)} ===")
-    for d, why in maybe:
+    for d, _ in maybe:
         print(f"  id={d.id} {d.name!r}")
     print(f"\n=== ОСТАЛЬНЫЕ каналы/группы — {len(rest)} ===")
     for d, _ in rest:
@@ -184,7 +191,7 @@ async def cmd_channels(client, args):
 
 async def cmd_scan(client, args):
     print(f"Профиль: {args.profile} — {args.title}")
-    since = datetime.now(timezone.utc) - timedelta(days=args.days)
+    since = datetime.now(UTC) - timedelta(days=args.days)
     targets = []
     if args.channels:
         # явный список из config.json / CLI: @хэндлы, t.me-ссылки или числовые id
@@ -198,21 +205,26 @@ async def cmd_scan(client, args):
             try:
                 ent = await client.get_entity(int(tok) if re.fullmatch(r"-?\d+", tok) else tok)
             except Exception as e:
-                if not warmed:               # прогрев кэша сессии один раз
+                if not warmed:  # прогрев кэша сессии один раз
                     warmed = True
                     await client.get_dialogs(limit=500)
                     try:
-                        ent = await client.get_entity(int(tok) if re.fullmatch(r"-?\d+", tok) else tok)
+                        ent = await client.get_entity(
+                            int(tok) if re.fullmatch(r"-?\d+", tok) else tok
+                        )
                     except Exception:
                         print(f"!! {handle}: {e}")
                         continue
                 else:
                     print(f"!! {handle}: {e}")
                     continue
-            targets.append(SimpleNamespace(
-                entity=ent, id=ent.id,
-                name=getattr(ent, "title", None) or f"@{tok}",
-            ))
+            targets.append(
+                SimpleNamespace(
+                    entity=ent,
+                    id=ent.id,
+                    name=getattr(ent, "title", None) or f"@{tok}",
+                )
+            )
     else:
         dialogs = await client.get_dialogs(limit=args.limit)
         for d in dialogs:
@@ -248,17 +260,19 @@ async def cmd_scan(client, args):
             link = ""
             if getattr(d.entity, "username", None):
                 link = f" https://t.me/{d.entity.username}/{m.id}"
-            rows.append({
-                "date": f"{m.date:%d.%m.%Y %H:%M}",
-                "profile": getattr(args, "profile", "default"),
-                "chat": d.name,
-                "chat_id": d.id,
-                "msg_id": m.id,
-                "link": link.strip(),
-                "stack": sorted(set(s.lower() for s in stack)),
-                "salary_min": sal,
-                "text": snippet(text, 1500),
-            })
+            rows.append(
+                {
+                    "date": f"{m.date:%d.%m.%Y %H:%M}",
+                    "profile": getattr(args, "profile", "default"),
+                    "chat": d.name,
+                    "chat_id": d.id,
+                    "msg_id": m.id,
+                    "link": link.strip(),
+                    "stack": sorted(set(s.lower() for s in stack)),
+                    "salary_min": sal,
+                    "text": snippet(text, 1500),
+                }
+            )
             print(f"--- [{m.date:%d.%m %H:%M}] {d.name!r} [{', '.join(tag) or '-'}]{link}")
             print(f"    {snippet(text)}\n")
     new = save_findings(args.out_dir, rows, note=f"профиль {args.profile}")
@@ -268,25 +282,27 @@ async def cmd_scan(client, args):
 
 async def cmd_find(client, args):
     """Глобальный поиск по публичным постам ТГ: каналы-кандидаты на подписку."""
-    result = await client(functions.messages.SearchGlobalRequest(
-        q=args.query,
-        filter=types.InputMessagesFilterEmpty(),
-        min_date=None,
-        max_date=None,
-        offset_rate=0,
-        offset_peer=types.InputPeerEmpty(),
-        offset_id=0,
-        limit=args.limit,
-    ))
+    result = await client(
+        functions.messages.SearchGlobalRequest(
+            q=args.query,
+            filter=types.InputMessagesFilterEmpty(),
+            min_date=None,
+            max_date=None,
+            offset_rate=0,
+            offset_peer=types.InputPeerEmpty(),
+            offset_id=0,
+            limit=args.limit,
+        )
+    )
     chats = {c.id: c for c in getattr(result, "chats", [])}
-    sub_ids = set()      # id и marked (-100…), и сырые: поиск возвращает второй формат
+    sub_ids = set()  # id и marked (-100…), и сырые: поиск возвращает второй формат
     async for d in client.iter_dialogs(limit=500):
         if d.is_channel or d.is_group:
             sub_ids.add(d.id)
             ent_id = getattr(d.entity, "id", None)
             if ent_id:
                 sub_ids.add(ent_id)
-    posts = {}                                # канал → первый найденный пост
+    posts = {}  # канал → первый найденный пост
     for m in result.messages:
         peer_id = m.peer_id.channel_id if isinstance(m.peer_id, types.PeerChannel) else None
         ch = chats.get(peer_id)
@@ -321,17 +337,26 @@ def main():
     sp.set_defaults(fn=cmd_channels)
 
     sp = sub.add_parser("scan")
-    sp.add_argument("--profile", default=cfg.get("active_profile", "default"),
-                    help=f"профиль из config.json: {', '.join(cfg.get('profiles') or {}) or '—'}")
+    sp.add_argument(
+        "--profile",
+        default=cfg.get("active_profile", "default"),
+        help=f"профиль из config.json: {', '.join(cfg.get('profiles') or {}) or '—'}",
+    )
     sp.add_argument("--days", type=int, default=None)
     sp.add_argument("-n", type=int, default=None, help="макс. сообщений на канал")
-    sp.add_argument("--all", action="store_true", help="все каналы, не только вакансионные по имени")
-    sp.add_argument("--min-salary", type=int, default=None,
-                    help="мин. ЗП в тыс/мес (без ЗП — проходит)")
-    sp.add_argument("--out-dir", default=None,
-                    help="куда складывать вакансии (jsonl + digest)")
-    sp.add_argument("--channels", nargs="*", default=None,
-                    help="явный список @хэндлов/t.me-ссылок/id (иначе — из профиля или эвристика по подпискам)")
+    sp.add_argument(
+        "--all", action="store_true", help="все каналы, не только вакансионные по имени"
+    )
+    sp.add_argument(
+        "--min-salary", type=int, default=None, help="мин. ЗП в тыс/мес (без ЗП — проходит)"
+    )
+    sp.add_argument("--out-dir", default=None, help="куда складывать вакансии (jsonl + digest)")
+    sp.add_argument(
+        "--channels",
+        nargs="*",
+        default=None,
+        help="явный список @хэндлов/t.me-ссылок/id (иначе — из профиля или эвристика по подпискам)",
+    )
     sp.add_argument("--limit", type=int, default=500)
     sp.set_defaults(fn=cmd_scan)
 
@@ -346,7 +371,7 @@ def main():
 
     args = p.parse_args()
 
-    if args.cmd == "scan":                   # CLI-флаг сильнее профиля, профиль сильнее legacy
+    if args.cmd == "scan":  # CLI-флаг сильнее профиля, профиль сильнее legacy
         prof = resolve_profile(cfg, args.profile)
         for k in PROFILE_DEFAULTS:
             if getattr(args, k, None) is None:

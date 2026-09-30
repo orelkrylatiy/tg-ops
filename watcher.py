@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Сенсор tg-hr: проверяет непрочитанные личные чаты, шлёт тост-уведомления Windows
 и складывает новые входящие в inbox.jsonl (очередь для Claude-крона).
 
@@ -10,6 +9,7 @@
 Конкурентный доступ к userbot.session: если файл залочен другим процессом
 (Claude-крон) — тихо выходим, в следующий проход догоним.
 """
+
 import argparse
 import asyncio
 import json
@@ -49,9 +49,9 @@ def toast(title, text):
     ps = os.path.join(HERE, "notify.ps1")
     try:
         subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-             "-File", ps, title, text],
-            timeout=20, capture_output=True,
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps, title, text],
+            timeout=20,
+            capture_output=True,
         )
     except Exception as e:
         print(f"toast failed: {type(e).__name__}")
@@ -60,8 +60,11 @@ def toast(title, text):
 async def scan(client):
     state = load_state()
     new_items = []
-    dialogs = [d for d in await client.get_dialogs(limit=50)
-               if not d.is_group and not d.is_channel and d.unread_count]
+    dialogs = [
+        d
+        for d in await client.get_dialogs(limit=50)
+        if not d.is_group and not d.is_channel and d.unread_count
+    ]
     for d in dialogs:
         last_id = state.get(str(d.id), 0)
         msgs = await client.get_messages(d.entity, limit=5)
@@ -71,8 +74,15 @@ async def scan(client):
             continue
         for m in fresh:
             text = (m.text or "").replace("\n", " ")[:200]
-            new_items.append({"ts": m.date.isoformat(), "chat": d.name,
-                              "chat_id": d.id, "msg_id": m.id, "text": text})
+            new_items.append(
+                {
+                    "ts": m.date.isoformat(),
+                    "chat": d.name,
+                    "chat_id": d.id,
+                    "msg_id": m.id,
+                    "text": text,
+                }
+            )
             toast(f"ТГ: {d.name}", text)
         state[str(d.id)] = max(m.id for m in fresh)
     if new_items:
@@ -93,8 +103,15 @@ async def main():
 
     if args.demo:
         toast("ТГ: Александра (демо)", "Демо-уведомление: watcher работает)")
-        append_inbox({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "chat": "DEMO",
-                      "chat_id": 0, "msg_id": 0, "text": "демо-запись очереди"})
+        append_inbox(
+            {
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "chat": "DEMO",
+                "chat_id": 0,
+                "msg_id": 0,
+                "text": "демо-запись очереди",
+            }
+        )
         print("demo: toast + inbox.jsonl записаны")
         return
 

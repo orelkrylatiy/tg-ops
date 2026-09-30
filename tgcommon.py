@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """Общее для tg.py и watcher.py: креды, пути, коннект с фоллбэком на SOCKS-прокси."""
+
 import logging
 import os
 

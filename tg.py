@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """CLI для ТГ-юзербота (аккаунт tg-hr слота).
 
 Команды:
@@ -12,6 +11,7 @@
 <chat> — подстрока имени или числовой id.
 Секреты (phone.env, userbot.session) в git не попадают — см. .gitignore.
 """
+
 import argparse
 import asyncio
 import sys
@@ -33,6 +33,7 @@ async def get_client():
         await client.sign_in(phone=phone, code=code)
         if not await client.is_user_authorized():
             import getpass
+
             pwd = getpass.getpass("Пароль 2FA: ")
             await client.sign_in(password=pwd)
     return client
@@ -158,13 +159,15 @@ def main():
 
     args = p.parse_args()
 
-
     async def run():
         client = await get_client()
         try:
             if args.cmd in ("dialogs", "unread") and getattr(args, "unread_only", False):
-                dialogs = [d for d in await client.get_dialogs(limit=50)
-                           if not d.is_group and not d.is_channel and d.unread_count]
+                dialogs = [
+                    d
+                    for d in await client.get_dialogs(limit=50)
+                    if not d.is_group and not d.is_channel and d.unread_count
+                ]
                 dialogs.sort(key=lambda d: -(d.date.timestamp() if d.date else 0))
                 if not dialogs:
                     print("Непрочитанных личных чатов нет")

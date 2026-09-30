@@ -6,7 +6,7 @@ import os
 import sys
 
 from telethon import TelegramClient
-from telethon.errors import PhoneCodeInvalidError, PhoneCodeExpiredError
+from telethon.errors import PhoneCodeExpiredError, PhoneCodeInvalidError
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -43,7 +43,9 @@ async def main():
         await client.sign_in(password=pwd)
     if await client.is_user_authorized():
         me = await client.get_me()
-        print(f"OK! Залогинен как: {me.first_name} {me.last_name or ''} (@{me.username or 'no username'}) id={me.id}")
+        print(
+            f"OK! Залогинен как: {me.first_name} {me.last_name or ''} (@{me.username or 'no username'}) id={me.id}"
+        )
     await client.disconnect()
 
 

@@ -14,7 +14,9 @@ API_HASH = "59fe2063b33c40c882b7c96ee889c7de"
 SESSION = os.path.join(os.path.dirname(os.path.abspath(__file__)), "userbot")
 
 phone = None
-with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "phone.env"), encoding="utf-8") as fh:
+with open(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "phone.env"), encoding="utf-8"
+) as fh:
     for line in fh:
         if line.startswith("TG_PHONE="):
             phone = line.strip().split("=", 1)[1]

@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 """Проверка реестра job_channels.md: жив ли каждый @хэндл.
 
-  py verify_channels.py            — резолв всех t.me/ссылок из реестра (+ число участников)
-  py verify_channels.py -o verify_report.txt — то же + отчёт в файл
+py verify_channels.py            — резолв всех t.me/ссылок из реестра (+ число участников)
+py verify_channels.py -o verify_report.txt — то же + отчёт в файл
 """
+
 import argparse
 import asyncio
-import re
 import os
+import re
 import sys
 
 from telethon import functions
@@ -69,7 +69,7 @@ async def main():
     finally:
         await client.disconnect()
 
-    ok = sum(1 for l in lines if l.startswith("OK"))
+    ok = sum(1 for line in lines if line.startswith("OK"))
     print(f"\nЖивых: {ok}/{len(lines)}")
     if args.out:
         with open(args.out, "w", encoding="utf-8") as fh:

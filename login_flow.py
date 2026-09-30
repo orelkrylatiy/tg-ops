@@ -8,8 +8,9 @@ import sys
 
 from telethon import TelegramClient
 from telethon.errors import (
-    ApiIdInvalidError, FloodWaitError, PhoneCodeInvalidError,
-    PhoneCodeExpiredError, SessionPasswordNeededError,
+    PhoneCodeExpiredError,
+    PhoneCodeInvalidError,
+    SessionPasswordNeededError,
 )
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -53,7 +54,9 @@ async def main():
             print("2FA PASSWORD REQUIRED")
             return
         me = await client.get_me()
-        print(f"AUTHORIZED OK: {me.first_name} {me.last_name or ''} (@{me.username or 'no username'}) id={me.id}")
+        print(
+            f"AUTHORIZED OK: {me.first_name} {me.last_name or ''} (@{me.username or 'no username'}) id={me.id}"
+        )
     else:
         print("usage: py login_flow.py request | code <CODE>")
     await client.disconnect()

@@ -5,7 +5,7 @@ import os
 import sys
 
 from telethon import TelegramClient
-from telethon.errors import PhoneCodeInvalidError, PhoneCodeExpiredError, SessionPasswordNeededError
+from telethon.errors import PhoneCodeExpiredError, PhoneCodeInvalidError, SessionPasswordNeededError
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -45,7 +45,9 @@ async def main():
         print("2FA PASSWORD REQUIRED (cloud password) — нужен пароль 2FA")
         return
     me = await client.get_me()
-    print(f"AUTHORIZED OK: {me.first_name} {me.last_name or ''} (@{me.username or 'no username'}) id={me.id}")
+    print(
+        f"AUTHORIZED OK: {me.first_name} {me.last_name or ''} (@{me.username or 'no username'}) id={me.id}"
+    )
     await client.disconnect()
 
 
