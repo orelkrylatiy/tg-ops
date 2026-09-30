@@ -346,6 +346,31 @@ def cmd_set(client, args):  # client не нужен: база локальна�
     print(f"OK {r['type']} {r['value']} → {r['status']}" + (f" ({args.note})" if args.note else ""))
 
 
+async def cmd_post(client, args):
+    """Полный текст поста-источника лида — сырьё для персонального отклика."""
+    store = load_store()
+    value = args.value.lower() if args.value.startswith("@") else args.value
+    key = next((k for k in store if k[1].lower() == value), None)
+    if not key:
+        print(f"Лид {args.value!r} не найден")
+        sys.exit(3)
+    r = store[key]
+    if not r.get("source_channel_id") or not r.get("source_msg_id"):
+        print("У лида нет источника (channel_id/msg_id)")
+        sys.exit(3)
+    ent = await client.get_entity(int(r["source_channel_id"]))
+    msgs = await client.get_messages(ent, ids=int(r["source_msg_id"]))
+    m = msgs[0] if isinstance(msgs, list) else msgs
+    if m is None or not (m.text or "").strip():
+        print("Пост не найден или без текста (возможно, удалён)")
+        sys.exit(3)
+    print(f"=== {r['value']} ← {r['source_channel']} [{r['source_date']}]")
+    if r.get("link"):
+        print(f"ссылка: {r['link']}")
+    print()
+    print(m.text)
+
+
 async def cmd_outreach(client, args):
     # texts — индивидуальный текст на каждого: {@value: текст}; задаю их я (агент),
     # сочиняя под контекст конкретного лида. Никаких общих шаблонов.
@@ -457,6 +482,10 @@ def main():
     sp.add_argument("status", help="new|contacted|replied|declined")
     sp.add_argument("note", nargs="?", default="")
     sp.set_defaults(fn=cmd_set)
+
+    sp = sub.add_parser("post", help="полный текст вакансии-источника лида")
+    sp.add_argument("value", help="значение лида (@user / ссылка)")
+    sp.set_defaults(fn=cmd_post)
 
     sp = sub.add_parser("outreach", help="написать новым лидам (+ резюме файлом)")
     sp.add_argument("--text", default=None, help="текст сообщения")
