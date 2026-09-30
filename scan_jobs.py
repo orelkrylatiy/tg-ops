@@ -24,6 +24,7 @@ from types import SimpleNamespace
 
 from telethon import functions, types
 
+import leads
 from tgcommon import HERE, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -243,6 +244,24 @@ async def cmd_scan(client, args):
             continue
         for m in msgs:
             text = m.text or ""
+            if text:  # лиды собираем из всех постов, не только подходящих под вакансию
+                try:
+                    _link = (
+                        f" https://t.me/{d.entity.username}/{m.id}"
+                        if getattr(d.entity, "username", None)
+                        else ""
+                    )
+                    leads.collect_from_text(
+                        text,
+                        channel=d.name,
+                        channel_id=d.id,
+                        msg_id=m.id,
+                        msg_date=m.date,
+                        link=_link.strip(),
+                        exclude_username=getattr(d.entity, "username", "") or "",
+                    )
+                except Exception:
+                    pass
             if not text or not VACANCY_TEXT_RE.search(text):
                 continue
             stack = STACK_RE.findall(text)
@@ -275,6 +294,10 @@ async def cmd_scan(client, args):
             )
             print(f"--- [{m.date:%d.%m %H:%M}] {d.name!r} [{', '.join(tag) or '-'}]{link}")
             print(f"    {snippet(text)}\n")
+    try:
+        leads.flush()  # лиды копились в памяти — сбросить в leads/leads.jsonl
+    except Exception:
+        pass
     new = save_findings(args.out_dir, rows, note=f"профиль {args.profile}")
     print(f"Сохранено: {len(new)} новых записей → {args.out_dir}/vacancies.jsonl + digest")
     print(f"Итого подходящих вакансий: {found}")

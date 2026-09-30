@@ -14,6 +14,7 @@
 
 import argparse
 import asyncio
+import os
 import sys
 
 from tgcommon import connect_any, load_phone
@@ -116,6 +117,25 @@ async def cmd_send(client, args):
     print(f"OK → {d.name!r}: {args.text[:100]}")
 
 
+async def cmd_sendfile(client, args):
+    """Отправить файл (резюме и т.п.); 'me' = себе в Избранное (для проверки)."""
+    if not os.path.exists(args.path):
+        print(f"Файл не найден: {args.path}")
+        sys.exit(3)
+    caption = args.caption or ""
+    if args.chat == "me":
+        await client.send_file("me", args.path, caption=caption)
+        print(f"OK → Избранное: {os.path.basename(args.path)}")
+        return
+    dialogs = await client.get_dialogs(limit=50)
+    d = find_dialog(dialogs, args.chat)
+    if not d:
+        print(f"Чат {args.chat!r} не найден")
+        sys.exit(3)
+    await client.send_file(d.entity, args.path, caption=caption)
+    print(f"OK → {d.name!r}: {os.path.basename(args.path)}")
+
+
 async def cmd_mark(client, args):
     dialogs = await client.get_dialogs(limit=50)
     d = find_dialog(dialogs, args.chat)
@@ -150,6 +170,12 @@ def main():
     sp.add_argument("chat")
     sp.add_argument("text")
     sp.set_defaults(fn=cmd_send)
+
+    sp = sub.add_parser("sendfile")
+    sp.add_argument("chat")
+    sp.add_argument("path")
+    sp.add_argument("caption", nargs="?", default="")
+    sp.set_defaults(fn=cmd_sendfile)
 
     sp = sub.add_parser("mark")
     sp.add_argument("chat")

@@ -18,6 +18,7 @@ py tg.py unread              # личные чаты с непрочитанны
 py tg.py dialogs [-a]        # последние чаты
 py tg.py read "Александра" -n 10
 py tg.py send "Александра" "текст"
+py tg.py sendfile "Александра" resume.pdf caption  # отправить файл (резюме и т.п.)
 py tg.py send me "себе в избранное"
 py tg.py mark "Александра"   # отметить прочитанным
 ```
@@ -28,6 +29,24 @@ py tg.py mark "Александра"   # отметить прочитанным
 (`active_profile` + `profiles`; CLI-флаги сильнее профиля). Профиль = дни, мин. ЗП,
 лимит и список каналов (`@хэндлы` или числовые id для приватных без username).
 Результаты копятся в `vacancies/vacancies.jsonl` + дневной `vacancies/digest-*.md`.
+
+## Лиды и рассылка
+
+Из постов каналов вытаскиваются контакты (@юзернеймы, t.me-ссылки), инвайт-ссылки
+(t.me/+hash, joinchat) и прочие URL (карьерные страницы/АТС) — в одну базу
+`leads/leads.jsonl` с дедупом, источником (канал, пост, ссылка) и сниппетом-контекстом.
+Юзернеймы/ссылки/инвайты разбираются врозь (`show --type`). Правило «уже писали —
+не пишем»: outreach берёт только статус `new` и после успешной отправки ставит
+`contacted`, так что повторный прогон дубликатов не создаёт.
+
+```bash
+py leads.py scan [--limit 500] [--profile react | --channels @a @b]   # глубокий скан истории
+py leads.py show [--type username|invite|url] [--status new] [-n 50]  # что нашлось
+py leads.py set @user contacted "ответил"                             # статус вручную
+py leads.py outreach --text "привет..." --resume resume.pdf --limit 5 # рассылка (сначала --dry-run)
+```
+
+`py scan_jobs.py scan` тоже попутно собирает лиды из каждого прочитанного поста.
 
 ## Реестр источников
 
