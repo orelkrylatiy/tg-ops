@@ -1,5 +1,6 @@
 """Общее для tg.py и watcher.py: креды, пути, коннект с фоллбэком на SOCKS-прокси."""
 
+import asyncio
 import logging
 import os
 
@@ -28,19 +29,27 @@ def load_phone():
 
 
 async def connect_any():
-    """Прямой коннект, при неудаче — SOCKS 127.0.0.1:10808. Иначе ConnectionError."""
+    """Прямой коннект, при неудаче — SOCKS 127.0.0.1:10808. Иначе ConnectionError.
+
+    «database is locked» (параллельный процесс пишет в userbot.session — крон и т.п.)
+    лечится повторами с паузой; любые другие ошибки — переход на следующий транспорт.
+    """
     last = None
     for proxy in (None, PROXY):
-        client = TelegramClient(SESSION, API_ID, API_HASH, proxy=proxy, **_CONN_KW)
-        try:
-            await client.connect()
-            return client
-        except Exception as e:
-            last = e
+        for attempt in range(4):
+            client = TelegramClient(SESSION, API_ID, API_HASH, proxy=proxy, **_CONN_KW)
             try:
-                await client.disconnect()
-            except Exception:
-                pass
+                await client.connect()
+                return client
+            except Exception as e:
+                last = e
+                try:
+                    await client.disconnect()
+                except Exception:
+                    pass
+                if "database is locked" not in str(e).lower():
+                    break  # не лок сессии — этот транспорт не поможет
+                await asyncio.sleep(5 * (attempt + 1))
     raise ConnectionError(
         f"Telegram недоступен ни напрямую, ни через SOCKS :10808 ({type(last).__name__}). "
         "Если прокси-клиент (v2ray и т.п.) выключен — включи."
