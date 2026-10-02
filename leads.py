@@ -449,6 +449,13 @@ async def cmd_outreach(client, args):
                 save_store(store)
                 print("    !! юзернейм не существует → declined, продолжаю")
                 continue
+            if "can't write" in str(e).lower():
+                # приватность пира (ЛС только контактам/премиум) — вина лида, не сети
+                r["status"] = "declined"
+                r["note"] = f"пирам закрыл ЛС ({_now_iso()})"
+                save_store(store)
+                print("    !! ЛС закрыты настройками пира → declined, продолжаю")
+                continue
             print(f"    !! не отправлено: {e}")
             break  # FloodWait/сеть — дальше не долбим, продолжится со следующего запуска
         if i < len(targets) - 1:

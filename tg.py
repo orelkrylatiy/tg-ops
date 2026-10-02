@@ -8,7 +8,8 @@
   py tg.py mark <chat>           — отметить чат прочитанным
   py tg.py me                    — кто залогинен
 
-<chat> — подстрока имени или числовой id.
+<chat> — подстрока имени, числовой id, а для контакта, с которым чата ещё
+нет, — @юзернейм или t.me-ссылка (resolve_chat: диалоги → get_entity).
 send откажется писать в чат, где последнее сообщение уже наше (правило
 «наше последнее — не пишем»: не долбим молчащий тред); поверх — --force.
 Служебный чат «Telegram» (коды входа) в unread не показывается.
@@ -18,6 +19,7 @@ send откажется писать в чат, где последнее соо
 import argparse
 import asyncio
 import os
+import re
 import sys
 
 from tgcommon import SERVICE_CHAT_IDS, connect_any, load_phone
@@ -63,6 +65,28 @@ def find_dialog(dialogs, query):
     return matches[0]
 
 
+_USERNAME_RE = re.compile(r"(?:^@|^(?:https?://)?t\.me/)([A-Za-z0-9_]{4,64})/?$")
+
+
+async def resolve_chat(client, query):
+    """(entity, имя) для <chat>: сначала диалоги (find_dialog), иначе новый
+    контакт по @юзернейму или t.me-ссылке. Не нашли — (None, query)."""
+    dialogs = await client.get_dialogs(limit=50)
+    d = find_dialog(dialogs, query)
+    if d:
+        return d.entity, d.name
+    m = _USERNAME_RE.match(str(query).strip())
+    if not m:
+        return None, str(query)
+    handle = "@" + m.group(1)
+    try:
+        entity = await client.get_entity(handle)
+    except Exception:
+        return None, handle
+    name = getattr(entity, "first_name", None) or getattr(entity, "title", None) or handle
+    return entity, name
+
+
 def fmt_msg(m, short=300):
     who = "Я" if m.out else "Они"
     text = (m.text or "(нет текста)").replace("\n", " | ")
@@ -93,13 +117,12 @@ async def cmd_dialogs(client, args):
 
 
 async def cmd_read(client, args):
-    dialogs = await client.get_dialogs(limit=50)
-    d = find_dialog(dialogs, args.chat)
-    if not d:
+    entity, name = await resolve_chat(client, args.chat)
+    if not entity:
         print(f"Чат {args.chat!r} не найден")
         sys.exit(3)
-    msgs = await client.get_messages(d.entity, limit=args.n)
-    print(f"=== {d.name!r} (id={d.id}), последние {len(msgs)} ===")
+    msgs = await client.get_messages(entity, limit=args.n)
+    print(f"=== {name!r} (id={entity.id}), последние {len(msgs)} ===")
     for m in reversed(msgs):
         who = "Я" if m.out else "Они"
         print(f"\n[{m.date:%d.%m.%Y %H:%M}] {who}:")
@@ -111,20 +134,19 @@ async def cmd_send(client, args):
         await client.send_message("me", args.text)
         print(f"OK → Избранное: {args.text[:100]}")
         return
-    dialogs = await client.get_dialogs(limit=50)
-    d = find_dialog(dialogs, args.chat)
-    if not d:
+    entity, name = await resolve_chat(client, args.chat)
+    if not entity:
         print(f"Чат {args.chat!r} не найден")
         sys.exit(3)
-    last = await client.get_messages(d.entity, limit=1)
+    last = await client.get_messages(entity, limit=1)
     if last and last[0].out and not args.force:
         print(
-            f"стоп: последнее сообщение в {d.name!r} наше — не пишем "
+            f"стоп: последнее сообщение в {name!r} наше — не пишем "
             f"(правило «наше последнее — не пишем»; если правда нужно — --force)"
         )
         sys.exit(4)
-    await client.send_message(d.entity, args.text)
-    print(f"OK → {d.name!r}: {args.text[:100]}")
+    await client.send_message(entity, args.text)
+    print(f"OK → {name!r}: {args.text[:100]}")
 
 
 async def cmd_sendfile(client, args):
@@ -137,23 +159,21 @@ async def cmd_sendfile(client, args):
         await client.send_file("me", args.path, caption=caption)
         print(f"OK → Избранное: {os.path.basename(args.path)}")
         return
-    dialogs = await client.get_dialogs(limit=50)
-    d = find_dialog(dialogs, args.chat)
-    if not d:
+    entity, name = await resolve_chat(client, args.chat)
+    if not entity:
         print(f"Чат {args.chat!r} не найден")
         sys.exit(3)
-    await client.send_file(d.entity, args.path, caption=caption)
-    print(f"OK → {d.name!r}: {os.path.basename(args.path)}")
+    await client.send_file(entity, args.path, caption=caption)
+    print(f"OK → {name!r}: {os.path.basename(args.path)}")
 
 
 async def cmd_mark(client, args):
-    dialogs = await client.get_dialogs(limit=50)
-    d = find_dialog(dialogs, args.chat)
-    if not d:
+    entity, name = await resolve_chat(client, args.chat)
+    if not entity:
         print(f"Чат {args.chat!r} не найден")
         sys.exit(3)
-    await client.send_read_acknowledge(d.entity)
-    print(f"OK, {d.name!r} отмечен прочитанным")
+    await client.send_read_acknowledge(entity)
+    print(f"OK, {name!r} отмечен прочитанным")
 
 
 async def cmd_me(client, args):

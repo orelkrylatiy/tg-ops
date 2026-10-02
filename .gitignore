@@ -17,3 +17,6 @@ outreach-*.md
 llm.env
 resume.pdf
 outreach-*.json
+responder-state.json
+.outbox*
+.outbox-astasia.txt

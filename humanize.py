@@ -275,7 +275,7 @@ MAX_VOICE = dict(
     prefer=[
         "простые живые слова, 2–4 предложения разной длины на всё сообщение",
         "одна конкретная деталь из вакансии по делу",
-        "разговорный тон мессенджера, вежливо, обращение по имени («Александра, добрый день!»)",
+        "разговорный тон мессенджера, вежливо; обращение по имени ТОЛЬКО если имя реально известно из лида/вакансии, иначе нейтральное «Здравствуйте!» (имя из головы не придумывать)",
         "лёгкая скобочка «)» в конце уместна",
     ],
     avoid=[
@@ -286,6 +286,7 @@ MAX_VOICE = dict(
         "«не просто X, а Y», риторические тройки, списки, эмодзи, длинное тире «—»",
         "ИИ-штампы: «задача понятна», «step by step», «шаг за шагом»",
         "перечисление всего стека списком",
+        "самосрез и самонедооценка («не смогу подтвердить», «могу не подойти», «откликаюсь с оговоркой», «с X опыта нет») — дефолт всегда «готов/рассматриваю/разберусь»; несовпадение по одному пункту просто не упоминаем",
     ],
 )
 
@@ -394,6 +395,23 @@ async def _fetch_post(client, row):
         return None
 
 
+def _split_fresh(rows, max_age_days):
+    """(свежие, старые) по дате поста-источника; без даты — считаем свежим."""
+    from datetime import UTC, datetime, timedelta
+
+    edge = datetime.now(UTC) - timedelta(days=max_age_days)
+    fresh, stale = [], []
+    for r in rows:
+        d = (r.get("source_date") or "")[:10]
+        try:
+            dt = datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=UTC)
+        except ValueError:
+            fresh.append(r)
+            continue
+        (fresh if dt >= edge else stale).append(r)
+    return fresh, stale
+
+
 async def cmd_humanize(client, args):
     store = leads_mod.load_store()
     if args.lead_value:  # позиционный: один лид, текст в stdout, базу не трогаем
@@ -418,13 +436,21 @@ async def cmd_humanize(client, args):
     if args.leads:  # явный список — но только ещё не тронутые
         want = {v.lower().lstrip("@") for v in args.leads}
         rows = [r for r in rows if r["value"].lstrip("@") in want]
-    rows.sort(key=lambda r: r["last_seen"], reverse=True)
-    rows = rows[: args.n]
-    if not rows:
-        print("Новых лидов-юзернеймов нет (leads.py show --type username --status new)")
+    fresh, stale = _split_fresh(rows, args.max_age_days)
+    # last_seen — время прогона сканера (у всех одинаковое), свежесть только source_date
+    fresh.sort(key=lambda r: r.get("source_date") or "", reverse=True)
+    fresh = fresh[: args.n]
+    if not fresh:
+        print(
+            f"Новых лидов-юзернеймов свежее {args.max_age_days} дн. нет "
+            f"(всего new: {len(rows)}, старых отброшено: {len(stale)})"
+        )
         return
 
-    print(f"Генерация текстов: {len(rows)} лидов; модель {GLM_MODEL}\n")
+    print(
+        f"Генерация текстов: {len(fresh)} лидов (старых {args.max_age_days}+ дн. пропущено: "
+        f"{len(stale)}); модель {GLM_MODEL}\n"
+    )
     texts = {}
     for row in rows:
         print(f"--- {row['value']} (из {row['source_channel']}, {row['source_date']})")
@@ -452,6 +478,12 @@ def main():
     p = argparse.ArgumentParser(description="Персональные отклики лидам через humanizer-framework")
     p.add_argument("lead_value", nargs="?", default=None, help="@лид — один текст в stdout")
     p.add_argument("-n", type=int, default=5, help="макс. текстов за прогон")
+    p.add_argument(
+        "--max-age-days",
+        type=int,
+        default=21,
+        help="пропускать лиды с постами старше N дней (0 = без фильтра)",
+    )
     p.add_argument("--leads", nargs="*", default=None, help="точечно: значения лидов")
     p.add_argument("--out", default="outreach-humanize.json", help="куда писать карту JSON")
     p.add_argument(
