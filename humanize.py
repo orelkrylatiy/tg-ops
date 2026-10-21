@@ -12,15 +12,13 @@ job_search и канала telegram: фреймворк генерит текс�
 Сам ничего не отправляет. Дальше — просмотреть карту и отправить руками
 агента: py leads.py outreach --map outreach-humanize.json --resume resume.pdf
 
-LLM: как в profi-worker — по умолчанию anthropic-протокол z.ai
-(ANTHROPIC_AUTH_TOKEN → api.z.ai/api/anthropic, модель glm-5.3-flash,
-thinking выключен). Ключи/токен — env или файл llm.env (KEY=VALUE, в git
-не попадает); при лимите перебираются: ANTHROPIC_AUTH_TOKEN →
-ANTHROPIC_API_KEY → GLM_API_KEY_2/ZAI_API_KEY_2. Другие провайдеры:
---provider glm (OpenAI-протокол api.z.ai, те же ключи, другой пул квот) и
---provider claude (локальный claude CLI, без ключей).
+LLM: по умолчанию — цепочка фреймворка (OpenCode ChatGPT → GLM → OpenAI
+API, ключи в .env самого фреймворка). Явный HUMANIZER_PROVIDER
+(anthropic|glm|claude) переключает на локальный стек llm.env ниже
+(ANTHROPIC_AUTH_TOKEN → api.z.ai/api/anthropic, glm-5.3-flash, thinking
+выключен; ключи — env или llm.env, в git не попадает).
 Фреймворк — установленный пакет (editable): py -m pip install -e
-C:\\Users\\Maxim\\Documents\\projects\\humanizer-framework
+C:\\Users\\Maxim\\Desktop\\projects\\humanizer-framework
 """
 
 import argparse
@@ -248,6 +246,31 @@ class _GlmProvider:
         return llm_chat(system, user, temperature=temperature, max_tokens=max_tokens)
 
 
+_chain_provider_singleton = None
+
+
+def _chain_provider():
+    """Цепочка фреймворка (OpenCode ChatGPT → GLM → OpenAI API), один на процесс.
+
+    Ключи фреймворк берёт сам из своего .env. Локальный llm.env-стек ниже
+    остаётся ручным оверрайдом через HUMANIZER_PROVIDER.
+    """
+    global _chain_provider_singleton
+    if _chain_provider_singleton is None:
+        from humanizer_framework.providers import default_provider
+
+        _chain_provider_singleton = default_provider()
+    return _chain_provider_singleton
+
+
+def _generation_provider():
+    """Транспорт генерации: цепочка фреймворка; явный HUMANIZER_PROVIDER
+    (anthropic/glm/claude) переключает на локальный стек llm_chat."""
+    if PROVIDER:
+        return _GlmProvider()
+    return _chain_provider()
+
+
 # --- голос Макса (стиль по его реальным сообщениям + правила от 30.09) ---------
 
 PROFILE_FACTS = [
@@ -337,7 +360,14 @@ def normalize_dashes(text):
 
 def _quality_gate(text):
     """Грейдер качества: ok → текст как есть; кривой → один rewrite."""
-    raw = llm_chat(_GRAIDER_SYSTEM, text, temperature=0.0, max_tokens=2000)
+    raw = _generation_provider().generate(
+        [
+            {"role": "system", "content": _GRAIDER_SYSTEM},
+            {"role": "user", "content": text},
+        ],
+        temperature=0.0,
+        max_tokens=2000,
+    )
     try:
         data = json.loads(raw[raw.find("{") : raw.rfind("}") + 1], strict=False)
     except Exception as exc:
@@ -368,7 +398,7 @@ def generate_outreach(vacancy_text, *, lead="", channel_name=""):
         voice=VoiceProfile(**MAX_VOICE),
         language="ru",
     )
-    result = CommunicationFramework(provider=_GlmProvider()).generate(request)
+    result = CommunicationFramework(provider=_generation_provider()).generate(request)
     text = " ".join(str(result.text or "").split())
     if not text:
         raise HumanizerError("фреймворк вернул пустой текст")

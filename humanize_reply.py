@@ -114,7 +114,7 @@ def generate_reply(
             replace_yo=True,
         ),
     )
-    fw = CommunicationFramework(provider=h._GlmProvider(), strict=False)
+    fw = CommunicationFramework(provider=h._generation_provider(), strict=False)
     return fw.generate(req)
 
 
