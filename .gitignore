@@ -16,6 +16,7 @@ outreach-*.md
 .env
 llm.env
 resume.pdf
+resume/*.pdf
 outreach-*.json
 responder-state.json
 .outbox*

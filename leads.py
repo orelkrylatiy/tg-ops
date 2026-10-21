@@ -475,6 +475,21 @@ async def cmd_outreach(client, args):
             continue
         try:
             ent = await client.get_entity(to)
+            # guard от дублей: если с этим пиром уже был любой наш тред —
+            # холодное касание повтором не шлём (урок 21.10: 4 дубля за волну,
+            # включая пинг в живой тред после ответа HR)
+            recent = await client.get_messages(ent, limit=10)
+            if any(m.out for m in recent):
+                last = recent[0]
+                who = "наше последнее" if last.out else "есть наш тред + их ответ"
+                r["note"] = (
+                    f"тред уже существовал ({who}), outreach-дубль пропущен {_now_iso()}"
+                )
+                save_store(store)
+                print(
+                    f"    !! тред уже есть ({who}, от {last.date:%d.%m}) → пропуск"
+                )
+                continue
             await client.send_message(ent, body)
             if args.resume:
                 await client.send_file(ent, args.resume, caption="")
