@@ -47,6 +47,7 @@ KB_PATH = os.path.join(HERE, "answers.json")
 ARMS_PATH = os.path.join(HERE, "hr-auto.json")
 STATE_PATH = os.path.join(HERE, "responder-state.json")
 INBOX = os.path.join(HERE, "inbox.jsonl")
+MANUAL_PATH = os.path.join(HERE, "leads", "manual-threads.json")
 ESCAL = os.path.join(HERE, "escalations.jsonl")
 OUTBOX = os.path.join(HERE, "responder-outbox.jsonl")
 SENTLOG = os.path.join(HERE, "responded.jsonl")
@@ -240,6 +241,10 @@ async def once():
     last = state.setdefault("last", {})
     pending = state.setdefault("pending", [])
     now = datetime.now(UTC)
+    # ручные треды (AGENTS.md §7): движок сюда не пишет, только тосты/лог
+    manual_ids = {
+        int(t["id"]) for t in load_json(MANUAL_PATH, {}).get("threads", []) if t.get("id")
+    }
 
     client = await connect_any()
     me = await client.get_me()
@@ -276,7 +281,7 @@ async def once():
             toast(f"💬 {d.name}", fresh[-1].message[:120])
             last[str(d.id)] = iso(fresh[-1].date)
 
-            if d.id not in arms.get("auto_chats", []):
+            if d.id not in arms.get("auto_chats", []) or d.id in manual_ids:
                 continue
             # 2) автоответ по базе — если чат «armed»
             text_in = fresh[-1].message
