@@ -67,6 +67,31 @@ INVITE_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 STATUS_ORDER = ("new", "contacted", "replied", "declined")
 
+# Пост не от эйчара: резюме кандидата (сами ищут работу), поиск команды, реклама
+# курсов/интенсивов. Классификация пишется в лид (post_kind) на скане; outreach
+# и humanize берут только "job". Маркеры резюме — как NOISE_POST_RE в scan_jobs.py.
+SEEKER_POST_RE = re.compile(
+    r"^\W{0,6}(?:резюме|resume)\b|ищ\w+ работу|open\s*to\s*work|обзор за \d"
+    r"|ищ\w+ (?:себе )?команд|в команд\w+ (?:проекта|кейса)|собира\w+ команд",
+    re.IGNORECASE,
+)
+ADS_POST_RE = re.compile(
+    r"бесплатн\w+ интенсив|интенсив для |вебинар|марафон|репетитор"
+    r"|выуч\w+ (?:английск|язык)|онлайн-школ",
+    re.IGNORECASE,
+)
+# Канал целиком не про найм (поиск команды и т.п.) — любые его лиды не эйчары.
+SEEKER_CHANNEL_RE = re.compile(r"поиск команд", re.IGNORECASE)
+
+
+def post_kind_of(text):
+    """Краткая классификация поста-источника: job (эйчар) | seeker | ads."""
+    if SEEKER_POST_RE.search(text):
+        return "seeker"
+    if ADS_POST_RE.search(text):
+        return "ads"
+    return "job"
+
 
 def _clean_url(url):
     """Откусить замыкающую пунктуацию и закрывающие скобки/кавычки."""
@@ -217,6 +242,9 @@ def collect_from_text(
             "source_date": f"{msg_date:%Y-%m-%d %H:%M}" if msg_date else "",
             "link": link or "",
             "snippet": snippet_around(text, 0),
+            "post_kind": (
+                "seeker" if SEEKER_CHANNEL_RE.search(channel) else post_kind_of(text)
+            ),
             "contacted_at": None,
             "note": "",
         }
@@ -393,7 +421,10 @@ async def cmd_outreach(client, args):
         targets = [
             r
             for r in store.values()
-            if r["type"] == "username" and r["status"] == "new" and r["value"] in texts
+            if r["type"] == "username"
+            and r["status"] == "new"
+            and r["value"] in texts
+            and r.get("post_kind", "job") == "job"
         ]
         found = {r["value"] for r in targets}
         for miss in sorted(set(texts) - found):
@@ -401,9 +432,21 @@ async def cmd_outreach(client, args):
                 (x for x in store.values() if x["type"] == "username" and x["value"] == miss),
                 None,
             )
-            print(f"пропуск {miss}: " + ("нет в базе" if r is None else f"статус {r['status']}"))
+            if r is None:
+                reason = "нет в базе"
+            else:
+                reason = f"статус {r['status']}"
+                if r.get("post_kind", "job") != "job":
+                    reason += f", пост не от эйчара ({r['post_kind']})"
+            print(f"пропуск {miss}: {reason}")
     else:
-        targets = [r for r in store.values() if r["type"] == "username" and r["status"] == "new"]
+        targets = [
+            r
+            for r in store.values()
+            if r["type"] == "username"
+            and r["status"] == "new"
+            and r.get("post_kind", "job") == "job"
+        ]
         if args.include:  # точечная отправка конкретному лиду (даже если уже писали)
             want = {v.lower() for v in args.include}
             targets = [

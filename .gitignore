@@ -20,3 +20,17 @@ outreach-*.json
 responder-state.json
 .outbox*
 .outbox-astasia.txt
+
+# секреты и персональные данные автоответчика (AGENTS.md обещал, но не было)
+hr.env
+answers.json
+hr-auto.json
+escalations.jsonl
+responded.jsonl
+responder-outbox.jsonl
+notify.ps1
+
+# персональные данные и мусор в git не идут
+gifts/
+resume.pdf.bak-*
+outreach-*.err

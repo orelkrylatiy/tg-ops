@@ -19,8 +19,8 @@ thinking выключен). Ключи/токен — env или файл llm.en
 ANTHROPIC_API_KEY → GLM_API_KEY_2/ZAI_API_KEY_2. Другие провайдеры:
 --provider glm (OpenAI-протокол api.z.ai, те же ключи, другой пул квот) и
 --provider claude (локальный claude CLI, без ключей).
-Фреймворк ищется в HUMANIZER_DIR (env) или по умолчанию
-в C:\\Users\\Maxim\\Desktop\\humanizer-framework.
+Фреймворк — установленный пакет (editable): py -m pip install -e
+C:\\Users\\Maxim\\Documents\\projects\\humanizer-framework
 """
 
 import argparse
@@ -40,9 +40,6 @@ from tgcommon import HERE, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-FRAMEWORK_DIR = Path(
-    os.environ.get("HUMANIZER_DIR") or r"C:\Users\Maxim\Desktop\humanizer-framework"
-)
 LLM_ENV_PATH = os.path.join(HERE, "llm.env")
 GLM_BASE_URL = (os.environ.get("GLM_BASE_URL") or "https://api.z.ai/api/paas/v4").rstrip("/")
 GLM_MODEL = os.environ.get("LLM_MODEL") or "glm-5.3-flash"
@@ -254,17 +251,24 @@ class _GlmProvider:
 # --- голос Макса (стиль по его реальным сообщениям + правила от 30.09) ---------
 
 PROFILE_FACTS = [
+    "Максим — мужчина, о себе в мужском роде, «увидел(а)» запрещены",
     "frontend-разработчик: React/TypeScript, 5+ лет; в стеке также Next.js",
     "сейчас делает высоконагруженный трейдинг-терминал: WebSocket, real-time, 10k+ трейдеров",
+    "английский B2",
+    "зарплатные ожидания от $3000",
     "цель — попасть на собеседование, готов созвониться в любое удобное время",
-    "резюме прикладывает следующим файлом",
+    "резюме в первом сообщении не отправляется; Максим пришлёт сам, если вакансия актуальна",
 ]
 
 BUSINESS_RULES = [
+    "Первое касание короткое: спроси, актуальна ли вакансия, и обозначь цель попасть на собеседование.",
     "В конце обозначь цель — попасть на собеседование, готов созвониться в удобное время.",
+    "Пиши под вакансию на максимум: по каждому пункту стека и требований из вакансии — работал,"
+    " опыт есть, заявляй уверенно и без оговорок. Никаких «вольюсь», дисклеймеров и признаний."
+    " Разбираться в деталях Максим будет сам на созвоне, тексту это не обсуждать.",
     "Деньги и зарплатные ожидания в первом сообщении не называть.",
     "Без ссылок, телефонов, e-mail, лишних мессенджеров и эмодзи.",
-    "Не выдумывать опыт, достижения и факты, которых нет в profile_facts; детали о себе брать только оттуда.",
+    "Пиши на языке поста вакансии (англоязычный пост — английский текст).",
     "Не пересказывать вакансию и не повторять то, что и так написано в посте.",
     "Текст должен быть личным под эту вакансию: два разных лида не получают одинаковый текст.",
 ]
@@ -287,6 +291,7 @@ MAX_VOICE = dict(
         "ИИ-штампы: «задача понятна», «step by step», «шаг за шагом»",
         "перечисление всего стека списком",
         "самосрез и самонедооценка («не смогу подтвердить», «могу не подойти», «откликаюсь с оговоркой», «с X опыта нет») — дефолт всегда «готов/рассматриваю/разберусь»; несовпадение по одному пункту просто не упоминаем",
+        "открывающие «признания» и дисклеймеры в начале текста («сразу честно», «скажу сразу», «честно говоря») — текст начинается с сильного, оговорка если и есть, то не первой фразой",
     ],
 )
 
@@ -304,11 +309,6 @@ _GRAIDER_SYSTEM = (
 
 def _framework():
     """Ленивый импорт humanizer-framework; нет/сломан — HumanizerError."""
-    src = FRAMEWORK_DIR / "src"
-    if not src.is_dir():
-        raise HumanizerError(f"нет каталога фреймворка: {src}")
-    if str(src) not in sys.path:
-        sys.path.insert(0, str(src))
     try:
         from humanizer_framework import CommunicationFramework
         from humanizer_framework.models import VoiceProfile
@@ -423,6 +423,8 @@ async def cmd_humanize(client, args):
         if not row:
             print(f"Лид @{value} не найден в базе")
             sys.exit(3)
+        if row.get("post_kind", "job") != "job":
+            print(f"!! пост-источник @{value} не от эйчара ({row['post_kind']})")
         post = await _fetch_post(client, row)
         if not post:
             print("У лида нет текста поста-источника, генерю по сниппету")
@@ -432,7 +434,13 @@ async def cmd_humanize(client, args):
         )
         return
 
-    rows = [r for r in store.values() if r["type"] == "username" and r["status"] == "new"]
+    rows = [
+        r
+        for r in store.values()
+        if r["type"] == "username"
+        and r["status"] == "new"
+        and r.get("post_kind", "job") == "job"
+    ]
     if args.leads:  # явный список — но только ещё не тронутые
         want = {v.lower().lstrip("@") for v in args.leads}
         rows = [r for r in rows if r["value"].lstrip("@") in want]
@@ -452,9 +460,18 @@ async def cmd_humanize(client, args):
         f"{len(stale)}); модель {GLM_MODEL}\n"
     )
     texts = {}
-    for row in rows:
+    kind_upgraded = False
+    for row in fresh:  # только отобранные топ-N (rows — все new, иначе цикл уходит в тысячи)
         print(f"--- {row['value']} (из {row['source_channel']}, {row['source_date']})")
         post = await _fetch_post(client, row) or row.get("snippet") or ""
+        # Классификация по ПОЛНОМУ посту: сниппет на скане мог обрезать маркер («вебинар» и т.п.)
+        kind = leads_mod.post_kind_of(post)
+        if kind != "job":
+            if row.get("post_kind") != kind:
+                row["post_kind"] = kind
+                kind_upgraded = True
+            print(f"    !! пропуск: пост не от эйчара ({kind})")
+            continue
         try:
             text = generate_outreach(
                 post, lead=row["value"], channel_name=row.get("source_channel") or ""
@@ -465,6 +482,8 @@ async def cmd_humanize(client, args):
         texts[row["value"]] = text
         print(f"    {text}\n")
         await asyncio.sleep(1.5)
+    if kind_upgraded:
+        leads_mod.save_store(store)
     if not texts:
         print("Ни одного текста не сгенерировано")
         sys.exit(3)

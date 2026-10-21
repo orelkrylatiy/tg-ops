@@ -91,6 +91,16 @@ py leads.py outreach --map texts.json --resume resume.pdf             # свой
 
 ## Автоответчик HR
 
+Для генерации текущей моделью Codex без отдельного LLM-провайдера доступен
+`humanize_local.py`: `prepare --request .outbox/request.json --out .outbox/package.json`
+готовит инструкции настоящего фреймворка. Агент пишет кандидат по этим инструкциям,
+затем `validate --package .outbox/package.json --text-file .outbox/draft.txt --out .outbox/validated.txt`
+нормализует и проверяет его. Запрос JSON использует поля `CommunicationRequest`
+(channel, domain, message_type, conversation, context, business_rules, voice,
+constraints). Профиль и факты задаёт вызывающий проект. При hard-ошибках команда
+возвращает код 2 и не оставляет выходной текст. Отдельный LLM-грейдер не запускается.
+После успешной проверки отправляется точное содержимое validated.txt через tg.py.
+
 `py responder.py` — демон: следит за личкой (новые входящие → `inbox.jsonl` + тост,
 та же роль, что у `watcher.py` — **watcher при живом респондере не запускать**),
 отвечает эйчарам по базе знаний `answers.json` ТОЛЬКО по заложенным фактам;

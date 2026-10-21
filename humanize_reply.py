@@ -17,7 +17,6 @@ from dataclasses import replace
 
 from tgcommon import HERE
 
-sys.path.insert(0, r"C:\Users\Maxim\Desktop\humanizer-framework\src")
 sys.path.insert(0, str(HERE))
 
 import humanizer_framework.framework as fwmod  # noqa: E402
@@ -37,6 +36,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 # Доменные правила (всё остальное — канон фреймворка, своих зеркал не пишем)
 RULES = [
     "Пишет Максим, мужчина, фронтенд-разработчик; от первого лица, живой короткий язык.",
+    "Отвечай на языке последнего сообщения собеседника (её английский текст — ответ на английском).",
     "Это ответ внутри уже идущего диалога с рекрутером в Telegram, не первое касание.",
     "Факты брать только из задачи; ничего не выдумывать (цены, сроки, названия компаний).",
     "Одно короткое сообщение из 1-3 предложений, без списков, заголовков и нумерации.",
@@ -200,11 +200,12 @@ def main():
                 rules=rules,
             )
         except Exception as e:
-            print(f"попытка {attempt}: движок упал {type(e).__name__}: {str(e)[:120]}")
+            print(f"попытка {attempt}: движок упал {type(e).__name__}: {str(e)[:120]}",
+                  file=sys.stderr)
             continue
         hard = [i.code for i in res.issues if i.hard]
         if hard and attempt < 3:
-            print(f"попытка {attempt}: hard={hard}, пересобираю")
+            print(f"попытка {attempt}: hard={hard}, пересобираю", file=sys.stderr)
             continue
         print(res.text)
         soft = [i.code for i in res.issues if not i.hard]

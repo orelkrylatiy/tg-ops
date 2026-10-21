@@ -5,6 +5,10 @@
   py tg.py unread                — только чаты с непрочитанными
   py tg.py read <chat> [-n 8]    — последние N сообщений чата целиком
   py tg.py send <chat> TEXT      — отправить сообщение
+  py tg.py react <chat> [emoji] [--msg id] [--remove]
+                                 — реакция на сообщение (по умолчанию 👍 на последнее);
+                                   на свои сообщения в «me» ТГ требует Premium,
+                                   на чужие в обычных чатах работает без него
   py tg.py mark <chat>           — отметить чат прочитанным
   py tg.py me                    — кто залогинен
 
@@ -21,6 +25,9 @@ import asyncio
 import os
 import re
 import sys
+
+from telethon.tl.functions.messages import SendReactionRequest
+from telethon.tl.types import ReactionEmoji
 
 from tgcommon import SERVICE_CHAT_IDS, connect_any, load_phone
 
@@ -71,7 +78,7 @@ _USERNAME_RE = re.compile(r"(?:^@|^(?:https?://)?t\.me/)([A-Za-z0-9_]{4,64})/?$"
 async def resolve_chat(client, query):
     """(entity, имя) для <chat>: сначала диалоги (find_dialog), иначе новый
     контакт по @юзернейму или t.me-ссылке. Не нашли — (None, query)."""
-    dialogs = await client.get_dialogs(limit=50)
+    dialogs = await client.get_dialogs(limit=500)
     d = find_dialog(dialogs, query)
     if d:
         return d.entity, d.name
@@ -129,11 +136,29 @@ async def cmd_read(client, args):
         print(m.text or "(нет текста)")
 
 
+_ENGINE_LOG_RE = re.compile(
+    r"^(попытка \d+:|\[замечания валидаторов)|hard=\[|пересобираю"
+)
+
+
+def _engine_log_lines(text):
+    """Строки-маркеры служебного лога движка в тексте сообщения (guard)."""
+    return [ln for ln in text.splitlines() if _ENGINE_LOG_RE.search(ln)]
+
+
 async def cmd_send(client, args):
     if args.chat == "me":
         await client.send_message("me", args.text)
         print(f"OK → Избранное: {args.text[:100]}")
         return
+    junk = _engine_log_lines(args.text)
+    if junk:
+        print(
+            "стоп: в тексте служебные строки движка (лог валидатора попал "
+            f"в файл генерации), первая: {junk[0][:60]!r} — "
+            "перегенерируй/почисти и отправь только текст сообщения"
+        )
+        sys.exit(4)
     entity, name = await resolve_chat(client, args.chat)
     if not entity:
         print(f"Чат {args.chat!r} не найден")
@@ -165,6 +190,39 @@ async def cmd_sendfile(client, args):
         sys.exit(3)
     await client.send_file(entity, args.path, caption=caption)
     print(f"OK → {name!r}: {os.path.basename(args.path)}")
+
+
+async def cmd_react(client, args):
+    """Реакция на сообщение (по умолчанию последнее, 👍); --remove снимает свою."""
+    if args.chat == "me":
+        msgs = await client.get_messages("me", limit=1)
+        if not msgs:
+            print("В Избранном нет сообщений")
+            sys.exit(3)
+        reaction = [] if args.remove else [ReactionEmoji(emoticon=args.emoji)]
+        await client(
+            SendReactionRequest(peer="me", msg_id=msgs[0].id, reaction=reaction)
+        )
+        print(f"OK → Избранное: {args.emoji} на msg {msgs[0].id}")
+        return
+    entity, name = await resolve_chat(client, args.chat)
+    if not entity:
+        print(f"Чат {args.chat!r} не найден")
+        sys.exit(3)
+    if args.msg:
+        msg_id = args.msg
+    else:
+        msgs = await client.get_messages(entity, limit=1)
+        if not msgs:
+            print("В чате нет сообщений")
+            sys.exit(3)
+        msg_id = msgs[0].id
+    reaction = [] if args.remove else [ReactionEmoji(emoticon=args.emoji)]
+    await client(
+        SendReactionRequest(peer=entity, msg_id=msg_id, reaction=reaction)
+    )
+    what = "снял реакцию" if args.remove else f"реакция {args.emoji}"
+    print(f"OK → {name!r}: {what} на msg {msg_id}")
 
 
 async def cmd_mark(client, args):
@@ -211,6 +269,15 @@ def main():
     sp.add_argument("path")
     sp.add_argument("caption", nargs="?", default="")
     sp.set_defaults(fn=cmd_sendfile)
+
+    sp = sub.add_parser("react")
+    sp.add_argument("chat")
+    sp.add_argument("emoji", nargs="?", default="👍")
+    sp.add_argument(
+        "--msg", type=int, default=0, help="id сообщения (по умолчанию последнее)"
+    )
+    sp.add_argument("--remove", action="store_true", help="снять свою реакцию")
+    sp.set_defaults(fn=cmd_react)
 
     sp = sub.add_parser("mark")
     sp.add_argument("chat")
