@@ -38,6 +38,9 @@ from tgcommon import HERE, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+# Identify this caller in the framework-owned telemetry stream.
+os.environ.setdefault("HUMANIZER_PROJECT", "tg-ops")
+
 LLM_ENV_PATH = os.path.join(HERE, "llm.env")
 GLM_BASE_URL = (os.environ.get("GLM_BASE_URL") or "https://api.z.ai/api/paas/v4").rstrip("/")
 GLM_MODEL = os.environ.get("LLM_MODEL") or "glm-5.3-flash"
@@ -238,6 +241,7 @@ class _GlmProvider:
     """Duck-typed под humanizer_framework.providers.base.Provider."""
 
     name = GLM_MODEL
+    model = GLM_MODEL
 
     def generate(self, messages, *, temperature=0.4, max_tokens=300):
         system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")

@@ -89,6 +89,7 @@ def generate_reply(
     max_questions=1,
     message_type=MessageType.CHAT_REPLY,
     rules=None,
+    recipient=None,
 ):
     convo = [Message(role="user", content=m) for m in hr_msgs]
     convo += [Message(role="assistant", content=m) for m in my_msgs]
@@ -99,7 +100,7 @@ def generate_reply(
         language="ru",
         profile="max-hr-dialog",
         conversation=convo,
-        context={"goal": goal},
+        context={"goal": goal, "lead": recipient} if recipient else {"goal": goal},
         business_rules=rules or RULES,
         voice=VoiceProfile(
             id="max",
