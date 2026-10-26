@@ -4,7 +4,8 @@
   py tg.py dialogs [-a]          — личные чаты, сначала непрочитанные (-a = все, с группами)
   py tg.py unread                — только чаты с непрочитанными
   py tg.py read <chat> [-n 8]    — последние N сообщений чата целиком
-  py tg.py send <chat> TEXT      — отправить сообщение
+  py tg.py send <chat> TEXT      — отправить новое сообщение
+  py tg.py reply <chat> --msg ID TEXT — ответить Reply на сообщение
   py tg.py react <chat> [emoji] [--msg id] [--remove]
                                  — реакция на сообщение (по умолчанию 👍 на последнее);
                                    на свои сообщения в «me» ТГ требует Premium,
@@ -174,6 +175,49 @@ async def cmd_send(client, args):
     print(f"OK → {name!r}: {args.text[:100]}")
 
 
+async def cmd_reply(client, args):
+    """Ответить на конкретное входящее сообщение, при необходимости с реакцией."""
+    if args.chat == "me":
+        print("Reply в Избранном через эту команду не поддерживается")
+        sys.exit(3)
+    junk = _engine_log_lines(args.text)
+    if junk:
+        print(
+            "стоп: в тексте служебные строки движка — "
+            f"первая: {junk[0][:60]!r}"
+        )
+        sys.exit(4)
+    entity, name = await resolve_chat(client, args.chat)
+    if not entity:
+        print(f"Чат {args.chat!r} не найден")
+        sys.exit(3)
+    target = await client.get_messages(entity, ids=args.msg)
+    if not target or not target.message:
+        print(f"Сообщение {args.msg} в чате {name!r} не найдено")
+        sys.exit(3)
+    if target.out and not args.force:
+        print("стоп: Reply можно ставить только на сообщение собеседника")
+        sys.exit(4)
+    last = await client.get_messages(entity, limit=1)
+    if last and last[0].out and not args.force:
+        print(
+            f"стоп: последнее сообщение в {name!r} наше — не пишем "
+            "(для осознанного исключения используй --force)"
+        )
+        sys.exit(4)
+    await client.send_message(entity, args.text, reply_to=target.id)
+    if args.react:
+        await client(
+            SendReactionRequest(
+                peer=entity,
+                msg_id=target.id,
+                reaction=[ReactionEmoji(emoticon=args.react)],
+            )
+        )
+    suffix = f" + реакция {args.react}" if args.react else ""
+    print(f"OK → {name!r}: Reply на msg {target.id}{suffix}: {args.text[:100]}")
+
+
 async def cmd_sendfile(client, args):
     """Отправить файл (резюме и т.п.); 'me' = себе в Избранное (для проверки)."""
     if not os.path.exists(args.path):
@@ -263,6 +307,22 @@ def main():
         help="писать даже если последнее сообщение в чате наше (follow-up и т.п.)",
     )
     sp.set_defaults(fn=cmd_send)
+
+    sp = sub.add_parser("reply")
+    sp.add_argument("chat")
+    sp.add_argument("text")
+    sp.add_argument("--msg", type=int, required=True, help="id входящего сообщения")
+    sp.add_argument(
+        "--react",
+        default=None,
+        help="поставить реакцию на сообщение собеседника после Reply, например 👍",
+    )
+    sp.add_argument(
+        "--force",
+        action="store_true",
+        help="разрешить Reply, если последнее сообщение уже наше",
+    )
+    sp.set_defaults(fn=cmd_reply)
 
     sp = sub.add_parser("sendfile")
     sp.add_argument("chat")

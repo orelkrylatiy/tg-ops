@@ -446,6 +446,39 @@ def _split_fresh(rows, max_age_days):
     return fresh, stale
 
 
+async def _preflight_outreach_rows(client, rows):
+    """Отсеять лидов с уже существующим исходящим тредом до LLM.
+
+    Финальный guard остаётся в leads.py/outreach на случай гонки, но обычный
+    прогон не должен тратить генерацию на контакт, которому уже писали.
+    Ошибка чтения треда не блокирует лид: в этом случае финальный guard всё
+    равно принимает последнее решение перед отправкой.
+    """
+    manual = leads_mod._load_manual_threads()
+    eligible = []
+    skipped = []
+    for row in rows:
+        verdict = await leads_mod._thread_verdict(client, row, manual)
+        if verdict["kind"] == "manual":
+            skipped.append((row, "ручной тред"))
+            continue
+        if verdict["kind"] == "ok" and verdict["out_count"]:
+            reason = "уже есть наше сообщение"
+            if verdict["last_ours"]:
+                reason += ", последнее сообщение наше"
+            elif verdict["last_theirs"]:
+                reason += ", после него был ответ HR"
+            skipped.append((row, reason))
+            continue
+        eligible.append(row)
+
+    for row, reason in skipped:
+        print(f"    !! preflight: {row['value']} → пропуск ({reason})")
+    if skipped:
+        print(f"Предварительный guard: исключено {len(skipped)} лидов до генерации")
+    return eligible
+
+
 async def cmd_humanize(client, args):
     store = leads_mod.load_store()
     if args.lead_value:  # позиционный: один лид, текст в stdout, базу не трогаем
@@ -482,9 +515,10 @@ async def cmd_humanize(client, args):
     # last_seen — время прогона сканера (у всех одинаковое), свежесть только source_date
     fresh.sort(key=lambda r: r.get("source_date") or "", reverse=True)
     fresh = fresh[: args.n]
+    fresh = await _preflight_outreach_rows(client, fresh)
     if not fresh:
         print(
-            f"Новых лидов-юзернеймов свежее {args.max_age_days} дн. нет "
+            f"Нет лидов для генерации после preflight "
             f"(всего new: {len(rows)}, старых отброшено: {len(stale)})"
         )
         return

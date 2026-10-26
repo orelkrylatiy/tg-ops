@@ -353,7 +353,9 @@ async def once():
                 still.append(p)
                 print(f"пересборка: {p['name']}")
                 continue
-            await client.send_message(ent, p["text"])
+            # Автоответ продолжает входящее сообщение, на которое он был
+            # запланирован. Для обычных новых касаний responder не используется.
+            await client.send_message(ent, p["text"], reply_to=p.get("seen_msg_id"))
             append_line(
                 SENTLOG,
                 {

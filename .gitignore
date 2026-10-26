@@ -35,3 +35,7 @@ notify.ps1
 gifts/
 resume.pdf.bak-*
 outreach-*.err
+tmp-*
+*.bak-*
+*.corrupt-*
+.ruff_cache/

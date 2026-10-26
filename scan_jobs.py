@@ -519,7 +519,14 @@ def main():
 
     if args.cmd == "scan":  # CLI-флаг сильнее профиля, профиль сильнее legacy
         prof = resolve_profile(cfg, args.profile)
+        # В профиле исторически поле называется ``limit``, а CLI-настройка
+        # количества сообщений на канал — ``-n`` (args.n). Без этого явного
+        # сопоставления get_messages(limit=None) читает только одно сообщение.
+        if args.n is None:
+            args.n = prof["limit"]
         for k in PROFILE_DEFAULTS:
+            if k == "limit":
+                continue
             if getattr(args, k, None) is None:
                 setattr(args, k, prof[k])
         args.title = prof["title"]
