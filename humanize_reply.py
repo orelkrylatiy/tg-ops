@@ -179,9 +179,19 @@ def main():
 
     is_anketa = args.type == "application"
     demo = DEMO_ANKETA if is_anketa else DEMO
-    hr = args.hr or demo["hr"]
-    me = args.me or demo["me"]
-    goal = args.goal or demo["goal"]
+    if not (args.hr or args.me or args.goal):
+        # Полный демо-режим: ни одного явного аргумента — показываем демо-кейс.
+        hr, me, goal = demo["hr"], demo["me"], demo["goal"]
+    else:
+        # Реальный вызов: демо-контекст НЕ подмешиваем (смешение давало брак:
+        # goal про одну вакансию, а модель отвечала на демо-вопрос про релокацию).
+        hr, me = args.hr, args.me
+        if not args.goal:
+            ap.error("в реальном вызове нужен --goal (что сказать)")
+        goal = args.goal
+        if not hr:
+            print("[нет --hr: режим инициативы/догонки, демо не подставляется]",
+                  file=sys.stderr)
     rules = (
         (ANKETA_RULES + [r for r in DEMO_ANKETA_RULES if r.startswith("П.")])
         if is_anketa
