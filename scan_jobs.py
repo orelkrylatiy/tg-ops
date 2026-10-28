@@ -53,6 +53,13 @@ STACK_RE = re.compile(
     r"javascript|js\b| redux|zustand|vite|webpack",
     re.IGNORECASE,
 )
+ML_STACK_RE = re.compile(
+    r"\bml\b|machine\s*learning|data\s*science|data\s*scientist|"
+    r"mlops|deep\s*learning|нейросет|машинн\w+ обучен|"
+    r"python|pandas|scikit[- ]learn|sklearn|tensorflow|pytorch|"
+    r"statsmodels|прогнозирован\w+ спроса|временн\w+ ряд",
+    re.IGNORECASE,
+)
 
 # Шум: посты-«резюме» кандидатов (сами ищут работу), сатирические обзоры рынка — не вакансии
 NOISE_POST_RE = re.compile(
@@ -333,6 +340,7 @@ async def cmd_scan(client, args):
     print(f"Сканирую {len(targets)} каналов/групп с {since:%d.%m.%Y}…\n")
     found = 0
     rows = []
+    stack_re = ML_STACK_RE if args.profile == "ml" else STACK_RE
     for d in targets:
         try:
             msgs = await fetch_messages(client, d.entity, args.n, since)
@@ -369,7 +377,7 @@ async def cmd_scan(client, args):
                 and OFFICE_RE.search(text)
             ):
                 continue  # явно офис/город, про удалёнку ни слова
-            stack = STACK_RE.findall(text)
+            stack = stack_re.findall(text)
             sal = parse_salary_min(text)
             ok_stack = bool(stack)
             ok_sal = sal is None or sal >= args.min_salary * 1000

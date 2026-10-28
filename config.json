@@ -9,6 +9,7 @@
       "limit": 50,
       "remote_only": true,
       "channels": [
+        "@corgiwork_bot",
         "@job_react",
         "@runello_rus_frontend",
         "@runello_rus_javascript",
@@ -34,6 +35,33 @@
       "min_salary": 300,
       "limit": 50,
       "channels": []
+    },
+    "ml": {
+      "title": "ML/Python вакансии, удалённо из РФ",
+      "days": 30,
+      "min_salary": 0,
+      "limit": 500,
+      "remote_only": false,
+      "channels": [
+        "@corgiwork_bot",
+        "@job_react",
+        "@runello_rus_frontend",
+        "@runello_rus_javascript",
+        "@frontend_vakansii",
+        "@forfrontend",
+        "@JScript_jobs",
+        "@backend_frontend_jobs",
+        "@jsdevjob",
+        "@senior_frontender",
+        "@job_webdev",
+        "@javascriptjobjs",
+        "@frontend_rabota",
+        "@js_rabota",
+        "@YotolabFrontend",
+        "@JavaScript_Jobb",
+        "@FrontendPortal",
+        "-1001782596777"
+      ]
     }
   }
 }

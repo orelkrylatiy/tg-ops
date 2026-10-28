@@ -2,10 +2,10 @@
 
 Канон (решение Макса 22.10):
 
-  Папки «HR», «HR-*» = РУЧНОЕ (все папки, чьё имя начинается с HR): Макс ведёт
-                      сам; движок/крон/responder молчат, лиды в базе не трогаем.
-                      Всё, что Макс туда положил, на ближайшем sync становится
-                      ручным автоматически. Бот их содержимое НЕ перетаскивает.
+  Любая пользовательская папка, кроме статусных папок автоматики и «Люди»,
+                      = РУЧНОЕ: Макс ведёт сам; движок/крон/responder молчат.
+                      Сюда входят «HR», «HR-*», «Менторы ML» и будущие кастомные
+                      папки. Их содержимое бот НЕ перетаскивает.
   «Холодки»         = бот написал (contacted), ждём ответа.
   «Диалог»          = живой тред (replied): HR ответил, ведёт движок.
   «Тёплые»          = warm: «вакансий нет», возврат через 20 дней.
@@ -13,13 +13,15 @@
   «Люди»            = личное Макса, бот НЕ трогает (липкая).
   Группы/каналы/боты и чаты без статуса в базе — не трогаем.
 
-Правила: один чат — одна статусная папка; HR и «Люди» липкие (никогда не
-убираем ботом); при переносе чата в HR он покидает статусную папку.
+Правила: один чат — одна статусная папка; кастомные папки и «Люди» липкие
+(никогда не убираем ботом); при переносе чата в кастомную папку он покидает
+статусную папку.
 
 Команды:
   py folders.py list              — папки и их чаты
   py folders.py sync [--dry-run]  — раскладка: база+треды → папки,
-                                    папка HR → manual-threads.json
+                                    кастомные папки → manual-threads.json
+  py folders.py add TITLE CHAT... — создать папку или добавить в неё чаты
 """
 
 import argparse
@@ -46,6 +48,7 @@ STATUS_FOLDERS = {  # папка ← статус лида в базе
     "warm": "Тёплые",
     "declined": "Отказы",
 }
+AUTOMATION_FOLDER_TITLES = set(STATUS_FOLDERS.values())
 MANUAL_PATH = os.path.join(HERE, "leads", "manual-threads.json")
 
 
@@ -132,16 +135,43 @@ async def cmd_list(client, args):
     print(f"\nДиалогов всего (с группами): {n}")
 
 
+async def cmd_add(client, args):
+    """Создать пользовательскую папку или добавить в неё указанные чаты."""
+    filters = await get_filters(client)
+    existing_ids = [f.id for _, f, _ in filters]
+    current = next(((f, peers) for title, f, peers in filters if title == args.title), None)
+    input_peers = []
+    for chat in args.chats:
+        try:
+            entity = await client.get_entity(chat)
+            input_peers.append(await client.get_input_entity(entity))
+        except Exception as exc:
+            print(f"Чат {chat!r} не найден: {type(exc).__name__}")
+            return 3
+    if current is None:
+        await create_folder(client, args.title, existing_ids, input_peers)
+        print(f"Создана папка {args.title!r}, добавлено чатов: {len(input_peers)}")
+        return 0
+    folder, _ = current
+    by_id = {_peer_id(peer): peer for peer in list(folder.include_peers or [])}
+    for peer in input_peers:
+        by_id[_peer_id(peer)] = peer
+    updated = _build_filter_like(folder, list(by_id.values()))
+    await client(UpdateDialogFilterRequest(id=folder.id, filter=updated))
+    print(f"Папка {args.title!r} обновлена, чатов: {len(by_id)}")
+    return 0
+
+
 async def cmd_sync(client, args):
     dry = args.dry_run
     filters = await get_filters(client)
     by_title = {t: (f, peers) for t, f, peers in filters}
 
-    # 1) липкие: все папки «HR*» (HR, HR-done, ...) — ручные, бот не трогает
-    #    их содержимое никогда; «Люди» — личное, тоже липкая
+    # 1) липкие: все пользовательские папки, кроме статусных и «Люди»,
+    #    считаются ручными. «Люди» — личное, тоже липкая.
     manual_folders = {
         t: peers for t, (f, peers) in by_title.items()
-        if t.lower().startswith("hr")
+        if t not in AUTOMATION_FOLDER_TITLES and t != FOLDER_PERSONAL
     }
     manual_peers = set().union(*manual_folders.values()) if manual_folders else set()
     manual_f, _have = by_title.get(FOLDER_MANUAL, (None, set()))
@@ -255,25 +285,33 @@ async def cmd_sync(client, args):
             except Exception as e:  # noqa: BLE001
                 print(f"!! не смог обновить папку {title!r}: {e}")
 
-    # 8) все папки HR* → manual-threads.json (чаты Макса, которых нет в файле)
+    # 8) все кастомные папки → manual-threads.json
     filters = await get_filters(client)
-    hr_now = set().union(*[
-        peers for t, (f, peers) in {t: (f, p) for t, f, p in filters}.items()
-        if t.lower().startswith("hr")
-    ]) if any(t.lower().startswith("hr") for t in by_title) else set()
+    current_by_title = {t: (f, peers) for t, f, peers in filters}
+    manual_now_by_title = {
+        t: peers for t, (_f, peers) in current_by_title.items()
+        if t not in AUTOMATION_FOLDER_TITLES and t != FOLDER_PERSONAL
+    }
+    manual_now = (
+        set().union(*manual_now_by_title.values()) if manual_now_by_title else set()
+    )
     known = {t["id"] for t in manual_data.get("threads", [])}
     added = 0
-    for did in hr_now - known - personal_peers:
-        d = dialogs.get(did)
-        name = d.name if d else str(did)
+    for did in manual_now - known - personal_peers:
+        dialog_entry = dialogs.get(did)
+        name = dialog_entry[0].name if dialog_entry else str(did)
+        source_folders = sorted(
+            title for title, peers in manual_now_by_title.items() if did in peers
+        )
+        source = ", ".join(source_folders)
         manual_data["threads"].append({
             "id": did,
-            "name": f"{name} (из папки HR)",
+            "name": f"{name} (из папки {source})",
             "since": f"{datetime.now():%Y-%m-%d}",
-            "note": "лежит в HR-папке — ручной (правило папок 22.10)",
+            "note": f"лежит в кастомной папке {source} — ручной",
         })
         added += 1
-        print(f"+ РУЧНОЙ (из HR-папки): {name!r} (id={did})")
+        print(f"+ РУЧНОЙ (из папки {source}): {name!r} (id={did})")
     if added and not dry:
         manual_data["updated"] = f"{datetime.now():%Y-%m-%d}"
         _save_manual(manual_data)
@@ -288,6 +326,9 @@ def main():
     sub.add_parser("list", help="папки и их чаты")
     s = sub.add_parser("sync", help="синхронизация база⇄папки")
     s.add_argument("--dry-run", action="store_true")
+    s = sub.add_parser("add", help="создать папку или добавить в неё чаты")
+    s.add_argument("title")
+    s.add_argument("chats", nargs="+")
     args = ap.parse_args()
 
     async def run():
@@ -297,6 +338,8 @@ def main():
             return 2
         if args.cmd == "list":
             await cmd_list(client, args)
+        elif args.cmd == "add":
+            return await cmd_add(client, args)
         else:
             await cmd_sync(client, args)
 

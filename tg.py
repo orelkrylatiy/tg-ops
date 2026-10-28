@@ -133,8 +133,11 @@ async def cmd_read(client, args):
     print(f"=== {name!r} (id={entity.id}), последние {len(msgs)} ===")
     for m in reversed(msgs):
         who = "Я" if m.out else "Они"
-        print(f"\n[{m.date:%d.%m.%Y %H:%M}] {who}:")
+        print(f"\n[{m.date:%d.%m.%Y %H:%M}] {who} (msg={m.id}):")
         print(m.text or "(нет текста)")
+        if m.buttons:
+            labels = [button.text for row in m.buttons for button in row]
+            print("Кнопки: " + " | ".join(labels))
 
 
 _ENGINE_LOG_RE = re.compile(
@@ -278,6 +281,24 @@ async def cmd_mark(client, args):
     print(f"OK, {name!r} отмечен прочитанным")
 
 
+async def cmd_click(client, args):
+    """Нажать inline-кнопку бота по точному тексту."""
+    entity, name = await resolve_chat(client, args.chat)
+    if not entity:
+        print(f"Чат {args.chat!r} не найден")
+        sys.exit(3)
+    message = await client.get_messages(entity, ids=args.msg)
+    if not message:
+        print(f"Сообщение {args.msg} в чате {name!r} не найдено")
+        sys.exit(3)
+    labels = [button.text for row in (message.buttons or []) for button in row]
+    if args.button not in labels:
+        print(f"Кнопка {args.button!r} не найдена. Доступны: {' | '.join(labels)}")
+        sys.exit(3)
+    await message.click(text=args.button)
+    print(f"OK → {name!r}: нажата кнопка {args.button!r} на msg {message.id}")
+
+
 async def cmd_me(client, args):
     me = await client.get_me()
     print(f"{me.first_name} {me.last_name or ''} (@{me.username or '-'}) id={me.id}")
@@ -342,6 +363,12 @@ def main():
     sp = sub.add_parser("mark")
     sp.add_argument("chat")
     sp.set_defaults(fn=cmd_mark)
+
+    sp = sub.add_parser("click")
+    sp.add_argument("chat")
+    sp.add_argument("button", help="точный текст inline-кнопки")
+    sp.add_argument("--msg", type=int, required=True, help="id сообщения с кнопкой")
+    sp.set_defaults(fn=cmd_click)
 
     sub.add_parser("me").set_defaults(fn=cmd_me)
 

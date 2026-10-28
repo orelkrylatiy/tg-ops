@@ -61,7 +61,8 @@ username). Результаты копятся в `vacancies/vacancies.jsonl` + 
 успешной отправки ставит `contacted`, так что повторный прогон дубликатов не создаёт.
 
 ```bash
-py leads.py scan [--limit 500] [--profile react | --channels @a @b]   # глубокий скан истории
+py leads.py scan [--limit 500] [--profile react | --channels @a @b]   # глубокий скан контактов
+py scan_jobs.py scan --profile ml                                  # собрать ML-вакансии без рассылки
 py leads.py prescribe --profile react --limit 500 --daily-new-limit 20 # фильтры + до 20 новых TG HR/сутки
 py leads.py reconcile                                                  # ответы в ЛС: contacted → replied
 py leads.py show [--type username|email|invite|url] [--status new] [-n 50]  # что нашлось
