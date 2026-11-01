@@ -6,6 +6,7 @@
   py tg.py read <chat> [-n 8]    — последние N сообщений чата целиком
   py tg.py send <chat> TEXT      — отправить новое сообщение
   py tg.py reply <chat> --msg ID TEXT — ответить Reply на сообщение
+  py tg.py edit <chat> --msg ID TEXT — отредактировать своё сообщение
   py tg.py react <chat> [emoji] [--msg id] [--remove]
                                  — реакция на сообщение (по умолчанию 👍 на последнее);
                                    на свои сообщения в «me» ТГ требует Premium,
@@ -26,6 +27,7 @@ import asyncio
 import os
 import re
 import sys
+from pathlib import Path
 
 from telethon.tl.functions.messages import SendReactionRequest
 from telethon.tl.types import ReactionEmoji
@@ -150,6 +152,24 @@ def _engine_log_lines(text):
     return [ln for ln in text.splitlines() if _ENGINE_LOG_RE.search(ln)]
 
 
+def _send_options(args):
+    """Return Telethon options for the requested Telegram text format."""
+    return {"parse_mode": "html"} if getattr(args, "format", "plain") == "html" else {}
+
+
+def _text_from_args(args):
+    if args.text_file:
+        path = Path(args.text_file)
+        if not path.is_file():
+            print(f"Файл текста не найден: {path}")
+            sys.exit(3)
+        return path.read_text(encoding="utf-8")
+    if args.text is None:
+        print("Передай текст или --text-file")
+        sys.exit(2)
+    return args.text
+
+
 async def cmd_send(client, args):
     if args.chat == "me":
         await client.send_message("me", args.text)
@@ -174,7 +194,7 @@ async def cmd_send(client, args):
             f"(правило «наше последнее — не пишем»; если правда нужно — --force)"
         )
         sys.exit(4)
-    await client.send_message(entity, args.text)
+    await client.send_message(entity, args.text, **_send_options(args))
     print(f"OK → {name!r}: {args.text[:100]}")
 
 
@@ -208,7 +228,9 @@ async def cmd_reply(client, args):
             "(для осознанного исключения используй --force)"
         )
         sys.exit(4)
-    await client.send_message(entity, args.text, reply_to=target.id)
+    await client.send_message(
+        entity, args.text, reply_to=target.id, **_send_options(args)
+    )
     if args.react:
         await client(
             SendReactionRequest(
@@ -228,15 +250,42 @@ async def cmd_sendfile(client, args):
         sys.exit(3)
     caption = args.caption or ""
     if args.chat == "me":
-        await client.send_file("me", args.path, caption=caption)
+        await client.send_file("me", args.path, caption=caption, **_send_options(args))
         print(f"OK → Избранное: {os.path.basename(args.path)}")
         return
     entity, name = await resolve_chat(client, args.chat)
     if not entity:
         print(f"Чат {args.chat!r} не найден")
         sys.exit(3)
-    await client.send_file(entity, args.path, caption=caption)
+    await client.send_file(entity, args.path, caption=caption, **_send_options(args))
     print(f"OK → {name!r}: {os.path.basename(args.path)}")
+
+
+async def cmd_edit(client, args):
+    """Edit an outgoing Telegram message or channel post."""
+    text = _text_from_args(args)
+    junk = _engine_log_lines(text)
+    if junk:
+        print(
+            "стоп: в тексте служебные строки движка — "
+            f"первая: {junk[0][:60]!r}"
+        )
+        sys.exit(4)
+    entity, name = await resolve_chat(client, args.chat)
+    if not entity:
+        print(f"Чат {args.chat!r} не найден")
+        sys.exit(3)
+    message = await client.get_messages(entity, ids=args.msg)
+    if not message or not message.message:
+        print(f"Сообщение {args.msg} в чате {name!r} не найдено")
+        sys.exit(3)
+    if not message.out:
+        print("стоп: редактировать можно только своё сообщение")
+        sys.exit(4)
+    await client.edit_message(
+        entity, message.id, text, **_send_options(args)
+    )
+    print(f"OK → {name!r}: отредактирован msg {message.id}")
 
 
 async def cmd_react(client, args):
@@ -323,6 +372,12 @@ def main():
     sp.add_argument("chat")
     sp.add_argument("text")
     sp.add_argument(
+        "--format",
+        choices=("plain", "html"),
+        default="plain",
+        help="формат Telegram-текста; html поддерживает b/i/u/s/code/a",
+    )
+    sp.add_argument(
         "--force",
         action="store_true",
         help="писать даже если последнее сообщение в чате наше (follow-up и т.п.)",
@@ -333,6 +388,7 @@ def main():
     sp.add_argument("chat")
     sp.add_argument("text")
     sp.add_argument("--msg", type=int, required=True, help="id входящего сообщения")
+    sp.add_argument("--format", choices=("plain", "html"), default="plain")
     sp.add_argument(
         "--react",
         default=None,
@@ -349,7 +405,16 @@ def main():
     sp.add_argument("chat")
     sp.add_argument("path")
     sp.add_argument("caption", nargs="?", default="")
+    sp.add_argument("--format", choices=("plain", "html"), default="plain")
     sp.set_defaults(fn=cmd_sendfile)
+
+    sp = sub.add_parser("edit")
+    sp.add_argument("chat")
+    sp.add_argument("text", nargs="?")
+    sp.add_argument("--msg", type=int, required=True, help="id своего сообщения")
+    sp.add_argument("--text-file", help="UTF-8-файл с новым текстом")
+    sp.add_argument("--format", choices=("plain", "html"), default="plain")
+    sp.set_defaults(fn=cmd_edit)
 
     sp = sub.add_parser("react")
     sp.add_argument("chat")

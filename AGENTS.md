@@ -62,6 +62,10 @@
   последнее сообщение наше (не долбим молчащий тред); если правда нужно —
   `--force`.
 - Файл (резюме и т.п.): `py tg.py sendfile <chat> resume.pdf caption`.
+- Для публичных постов: `py tg.py sendfile <chat> image.png caption --format html`;
+  поддерживаются Telegram HTML-теги `<b>`, `<i>`, `<u>`, `<s>`, `<code>` и `<a>`.
+- Свой опубликованный пост можно изменить через `py tg.py edit <chat> --msg ID
+  --format html --text-file .outbox/post.html`; редактируются только наши сообщения.
 - Кириллица — только через `py tg.py` (PowerShell/curl ломает её в «????»).
 - После отправки — одно подтверждение (`OK → имя: текст`), дублировать
   перечитыванием чата не нужно.

@@ -18,6 +18,8 @@ py tg.py unread              # личные чаты с непрочитанны
 py tg.py dialogs [-a]        # последние чаты
 py tg.py read "Александра" -n 10
 py tg.py send "Александра" "текст"
+py tg.py send "Максим Сергеевич | ЕГЭ, ОГЭ" --format html "<b>Заголовок</b>\n\nТекст"
+py tg.py edit "Максим Сергеевич | ЕГЭ, ОГЭ" --msg 123 --format html --text-file .outbox/post.html
 py tg.py send "@HRiMediaSolutions" "текст"  # новый контакт: @юзернейм или t.me-ссылка
 py tg.py sendfile "Александра" resume.pdf caption  # отправить файл (резюме и т.п.)
 py tg.py send me "себе в избранное"
@@ -28,6 +30,10 @@ py tg.py mark "Александра"   # отметить прочитанным
 `@юзернейм` или t.me-ссылка (resolve_chat найдёт контакт и создаст диалог).
 Правила для агента («людям пишем только через humanizer-framework», отправка
 через `tg.py`) — в **AGENTS.md**.
+
+Для постов Telegram поддерживается `--format html`. Разрешены стандартные теги
+`<b>`, `<i>`, `<u>`, `<s>`, `<code>` и `<a href="...">`. Команда `edit` меняет
+только собственные сообщения и посты.
 
 ## Сканер вакансий
 
