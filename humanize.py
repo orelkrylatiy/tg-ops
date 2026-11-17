@@ -31,7 +31,6 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
 
 import leads as leads_mod
 from tgcommon import HERE, connect_any
@@ -285,7 +284,11 @@ def _generation_label():
     if PROVIDER:
         return f"локальный стек {GLM_MODEL}"
     last = getattr(_chain_provider(), "last_model", None)
-    return f"цепочка фреймворка, фактически {last}" if last else "цепочка фреймворка (opencode → z.ai → openai-api)"
+    return (
+        f"цепочка фреймворка, фактически {last}"
+        if last
+        else "цепочка фреймворка (opencode → z.ai → openai-api)"
+    )
 
 
 # --- голос Макса (стиль по его реальным сообщениям + правила от 30.09) ---------
@@ -519,9 +522,7 @@ async def cmd_humanize(client, args):
     rows = [
         r
         for r in store.values()
-        if r["type"] == "username"
-        and r["status"] == "new"
-        and r.get("post_kind", "job") == "job"
+        if r["type"] == "username" and r["status"] == "new" and r.get("post_kind", "job") == "job"
     ]
     if args.leads:  # явный список — но только ещё не тронутые
         want = {v.lower().lstrip("@") for v in args.leads}

@@ -142,9 +142,7 @@ async def cmd_read(client, args):
             print("Кнопки: " + " | ".join(labels))
 
 
-_ENGINE_LOG_RE = re.compile(
-    r"^(попытка \d+:|\[замечания валидаторов)|hard=\[|пересобираю"
-)
+_ENGINE_LOG_RE = re.compile(r"^(попытка \d+:|\[замечания валидаторов)|hard=\[|пересобираю")
 
 
 def _engine_log_lines(text):
@@ -205,10 +203,7 @@ async def cmd_reply(client, args):
         sys.exit(3)
     junk = _engine_log_lines(args.text)
     if junk:
-        print(
-            "стоп: в тексте служебные строки движка — "
-            f"первая: {junk[0][:60]!r}"
-        )
+        print(f"стоп: в тексте служебные строки движка — первая: {junk[0][:60]!r}")
         sys.exit(4)
     entity, name = await resolve_chat(client, args.chat)
     if not entity:
@@ -228,9 +223,7 @@ async def cmd_reply(client, args):
             "(для осознанного исключения используй --force)"
         )
         sys.exit(4)
-    await client.send_message(
-        entity, args.text, reply_to=target.id, **_send_options(args)
-    )
+    await client.send_message(entity, args.text, reply_to=target.id, **_send_options(args))
     if args.react:
         await client(
             SendReactionRequest(
@@ -266,10 +259,7 @@ async def cmd_edit(client, args):
     text = _text_from_args(args)
     junk = _engine_log_lines(text)
     if junk:
-        print(
-            "стоп: в тексте служебные строки движка — "
-            f"первая: {junk[0][:60]!r}"
-        )
+        print(f"стоп: в тексте служебные строки движка — первая: {junk[0][:60]!r}")
         sys.exit(4)
     entity, name = await resolve_chat(client, args.chat)
     if not entity:
@@ -282,9 +272,7 @@ async def cmd_edit(client, args):
     if not message.out:
         print("стоп: редактировать можно только своё сообщение")
         sys.exit(4)
-    await client.edit_message(
-        entity, message.id, text, **_send_options(args)
-    )
+    await client.edit_message(entity, message.id, text, **_send_options(args))
     print(f"OK → {name!r}: отредактирован msg {message.id}")
 
 
@@ -296,9 +284,7 @@ async def cmd_react(client, args):
             print("В Избранном нет сообщений")
             sys.exit(3)
         reaction = [] if args.remove else [ReactionEmoji(emoticon=args.emoji)]
-        await client(
-            SendReactionRequest(peer="me", msg_id=msgs[0].id, reaction=reaction)
-        )
+        await client(SendReactionRequest(peer="me", msg_id=msgs[0].id, reaction=reaction))
         print(f"OK → Избранное: {args.emoji} на msg {msgs[0].id}")
         return
     entity, name = await resolve_chat(client, args.chat)
@@ -314,9 +300,7 @@ async def cmd_react(client, args):
             sys.exit(3)
         msg_id = msgs[0].id
     reaction = [] if args.remove else [ReactionEmoji(emoticon=args.emoji)]
-    await client(
-        SendReactionRequest(peer=entity, msg_id=msg_id, reaction=reaction)
-    )
+    await client(SendReactionRequest(peer=entity, msg_id=msg_id, reaction=reaction))
     what = "снял реакцию" if args.remove else f"реакция {args.emoji}"
     print(f"OK → {name!r}: {what} на msg {msg_id}")
 
@@ -419,9 +403,7 @@ def main():
     sp = sub.add_parser("react")
     sp.add_argument("chat")
     sp.add_argument("emoji", nargs="?", default="👍")
-    sp.add_argument(
-        "--msg", type=int, default=0, help="id сообщения (по умолчанию последнее)"
-    )
+    sp.add_argument("--msg", type=int, default=0, help="id сообщения (по умолчанию последнее)")
     sp.add_argument("--remove", action="store_true", help="снять свою реакцию")
     sp.set_defaults(fn=cmd_react)
 

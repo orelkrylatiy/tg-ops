@@ -258,8 +258,7 @@ def _contact_leads(text, exclude_username=""):
         all_contacts.extend(
             (typ, value)
             for typ, value in extract_leads(line)
-            if typ == "username"
-            and not (typ == "username" and value == skip)
+            if typ == "username" and not (typ == "username" and value == skip)
         )
     all_contacts = list(dict.fromkeys(all_contacts))
     marked = []
@@ -268,8 +267,7 @@ def _contact_leads(text, exclude_username=""):
             marked.extend(
                 (typ, value)
                 for typ, value in extract_leads(line)
-                if typ == "username"
-                and not (typ == "username" and value == skip)
+                if typ == "username" and not (typ == "username" and value == skip)
             )
     chosen = marked or all_contacts
     return list(dict.fromkeys(chosen)), bool(marked)
@@ -343,7 +341,14 @@ def flush():
 
 
 def collect_from_text(
-    text, *, channel, channel_id, msg_id, msg_date=None, link="", exclude_username="",
+    text,
+    *,
+    channel,
+    channel_id,
+    msg_id,
+    msg_date=None,
+    link="",
+    exclude_username="",
     username_only=True,
 ):
     """Извлечь лиды из одного поста и влить в хранилище. Возвращает число НОВЫХ.
@@ -671,15 +676,10 @@ async def cmd_prescribe(client, args):
                 status, kind, reason = verify_status, verify_kind, verify_reason
 
         already_ready = bool(
-            r.get("status") == "new"
-            and r.get("post_kind") == "job"
-            and r.get("prescribed_at")
+            r.get("status") == "new" and r.get("post_kind") == "job" and r.get("prescribed_at")
         )
         staged = (
-            r.get("type") == "username"
-            and status == "new"
-            and kind == "job"
-            and not already_ready
+            r.get("type") == "username" and status == "new" and kind == "job" and not already_ready
         )
         r["status"] = status
         r["post_kind"] = "queued" if staged else kind
@@ -799,7 +799,10 @@ def cmd_set(client, args):  # client не нужен: база локальна�
         r["note"] = args.note
     save_store(store)
     extra = f", возврат {r['warm_recontact_at']}" if args.status == "warm" else ""
-    print(f"OK {r['type']} {r['value']} → {r['status']}{extra}" + (f" ({args.note})" if args.note else ""))
+    print(
+        f"OK {r['type']} {r['value']} → {r['status']}{extra}"
+        + (f" ({args.note})" if args.note else "")
+    )
 
 
 async def cmd_post(client, args):
@@ -976,7 +979,7 @@ def _load_manual_threads():
     keys = set()
     try:
         with open(os.path.join(LEADS_DIR, "manual-threads.json"), encoding="utf-8") as fh:
-            threads = (json.load(fh).get("threads") or [])
+            threads = json.load(fh).get("threads") or []
     except Exception:
         return keys
     for t in threads:
@@ -1009,10 +1012,10 @@ async def _thread_verdict(client, record, manual_keys):
     except Exception as e:
         v["kind"] = "dead" if "no user has" in str(e).lower() else "error"
         return v
-    if (
-        ("id", getattr(ent, "id", None)) in manual_keys
-        or ("username", record["value"]) in manual_keys
-    ):
+    if ("id", getattr(ent, "id", None)) in manual_keys or (
+        "username",
+        record["value"],
+    ) in manual_keys:
         v["kind"] = "manual"
         return v
     try:
@@ -1034,9 +1037,7 @@ async def _thread_verdict(client, record, manual_keys):
     if mine:
         v["our_first"] = (mine[-1].text or "").strip()
     theirs = [
-        m
-        for m in msgs
-        if not m.out and getattr(m, "sender_id", None) not in SERVICE_CHAT_IDS
+        m for m in msgs if not m.out and getattr(m, "sender_id", None) not in SERVICE_CHAT_IDS
     ]
     if theirs:
         v["their_last"] = (theirs[0].text or "").strip()  # msgs новые сверху
@@ -1054,9 +1055,7 @@ async def cmd_reconcile(client, args):
     store = load_store()
     manual = _load_manual_threads()
     pool = [
-        r
-        for r in store.values()
-        if r.get("type") == "username" and r.get("status") == "contacted"
+        r for r in store.values() if r.get("type") == "username" and r.get("status") == "contacted"
     ]
     changed = []
     skipped = []
@@ -1396,7 +1395,9 @@ async def cmd_warm_due(client, args):
     if candidates:
         print("\nКандидаты на тёплый возврат:")
         for r, _v in candidates:
-            print(f"  {r['value']} | возврат с {r.get('warm_recontact_at')} | {(r.get('note') or '')[:60]}")
+            print(
+                f"  {r['value']} | возврат с {r.get('warm_recontact_at')} | {(r.get('note') or '')[:60]}"
+            )
     else:
         print("\nКандидатов на возврат нет")
     for value, why in skipped:

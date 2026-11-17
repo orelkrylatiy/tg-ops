@@ -77,8 +77,12 @@ def main():
     text = normalize_output(raw, package.constraints, request.language)
     issues = validate_output(text, request, package.plan, package.constraints)
     valid = not any(issue.hard for issue in issues)
-    result = {"valid": valid, "text": text, "issues": [asdict(i) for i in issues],
-              "llm_grader": "not_run"}
+    result = {
+        "valid": valid,
+        "text": text,
+        "issues": [asdict(i) for i in issues],
+        "llm_grader": "not_run",
+    }
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if not valid:
         raise SystemExit(2)

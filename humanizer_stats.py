@@ -10,7 +10,6 @@ from pathlib import Path
 
 from humanizer_framework.telemetry import telemetry_path
 
-
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except AttributeError:
@@ -50,14 +49,20 @@ def report(events):
     totals = [0, 0, 0]
     for event in events:
         values = _usage_totals(event.get("usage"))
-        totals = [left + right for left, right in zip(totals, values)]
+        totals = [left + right for left, right in zip(totals, values, strict=False)]
 
     print(f"Генераций: {len(events)}  успешно: {len(success)}  ошибок: {len(errors)}")
     print(f"Токены: input={totals[0]} output={totals[1]} total={totals[2]}")
-    print(f"Среднее время: {round(sum(event.get('elapsed_ms', 0) for event in events) / len(events)) if events else 0} ms")
+    print(
+        f"Среднее время: {round(sum(event.get('elapsed_ms', 0) for event in events) / len(events)) if events else 0} ms"
+    )
     print(f"Repair: {sum(bool(event.get('repair_attempted')) for event in events)}")
 
-    for title, key in (("По сценариям", "message_type"), ("По моделям", "model"), ("По лидам", "lead")):
+    for title, key in (
+        ("По сценариям", "message_type"),
+        ("По моделям", "model"),
+        ("По лидам", "lead"),
+    ):
         counter = Counter(event.get(key) or "—" for event in events)
         print(f"\n{title}:")
         for name, count in counter.most_common():
@@ -66,7 +71,9 @@ def report(events):
     if errors:
         print("\nПоследние ошибки:")
         for event in errors[-10:]:
-            print(f"  {event.get('timestamp')} {event.get('lead', '—')}: {event.get('error_type')} {event.get('error', '')}")
+            print(
+                f"  {event.get('timestamp')} {event.get('lead', '—')}: {event.get('error_type')} {event.get('error', '')}"
+            )
 
 
 def main():
