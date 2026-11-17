@@ -144,16 +144,27 @@ def main():
 
     st = load_state()
     if st.get("date") != f"{datetime.now():%Y-%m-%d}":
-        st = {"date": f"{datetime.now():%Y-%m-%d}", "sent_cold": 0, "sent_followup": 0,
-              "sent_warm": 0, "last_outbound_error": "", "last_outbound_error_at": ""}
+        st = {
+            "date": f"{datetime.now():%Y-%m-%d}",
+            "sent_cold": 0,
+            "sent_followup": 0,
+            "sent_warm": 0,
+            "last_outbound_error": "",
+            "last_outbound_error_at": "",
+        }
     try:
         # 1) прописка: скан + фильтры + верификация, ничего не отправляет
         run_step(
             "прописка",
             [
-                "leads.py", "prescribe", "--profile", args.profile,
-                "--limit", str(args.scan_limit),
-                "--daily-new-limit", str(args.prescribe_cap),
+                "leads.py",
+                "prescribe",
+                "--profile",
+                args.profile,
+                "--limit",
+                str(args.scan_limit),
+                "--daily-new-limit",
+                str(args.prescribe_cap),
             ],
         )
 
@@ -164,8 +175,11 @@ def main():
             reconcile_cmd.append("--dry-run")
         run_step("сверка ЛС", reconcile_cmd)
 
-        budget = args.daily_cap - st.get("sent_cold", 0) - st.get("sent_followup", 0) - st.get(
-            "sent_warm", 0
+        budget = (
+            args.daily_cap
+            - st.get("sent_cold", 0)
+            - st.get("sent_followup", 0)
+            - st.get("sent_warm", 0)
         )
         if budget <= 0:
             print(
@@ -192,7 +206,14 @@ def main():
         # 2.5) тёплые возвраты: «вакансий нет» → касание через 20 дней (спека §3)
         warm_budget = min(args.warm, budget)
         if warm_budget > 0:
-            cmd = ["leads.py", "warm-due", "--limit", str(warm_budget), "--report-json", REPORT_WARM]
+            cmd = [
+                "leads.py",
+                "warm-due",
+                "--limit",
+                str(warm_budget),
+                "--report-json",
+                REPORT_WARM,
+            ]
             if not args.dry_run:
                 cmd.append("--send")
             run_step("тёплые возвраты", cmd)
@@ -216,8 +237,14 @@ def main():
             )
             if os.path.exists(MAP) and os.path.getsize(MAP) > 4:
                 cmd = [
-                    "leads.py", "outreach", "--map", MAP,
-                    "--limit", str(cold_budget), "--report-json", REPORT_COLD,
+                    "leads.py",
+                    "outreach",
+                    "--map",
+                    MAP,
+                    "--limit",
+                    str(cold_budget),
+                    "--report-json",
+                    REPORT_COLD,
                 ]
                 if args.dry_run:
                     cmd.append("--dry-run")

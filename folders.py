@@ -111,6 +111,7 @@ def _build_filter_like(f, include_peers):
     title = getattr(f, "title", None)
     if title is not None and not isinstance(title, str):
         from telethon.tl.types import TextWithEntities
+
         title = TextWithEntities(text=title.text, entities=list(title.entities or []))
     return DialogFilter(
         id=f.id,
@@ -129,7 +130,11 @@ async def cmd_list(client, args):
         for pid in sorted(peers):
             d = dialogs.get(pid)
             name = d.name if d else "?"
-            u = "@" + dialogs[pid].entity.username if d and getattr(d.entity, "username", None) else "-"
+            u = (
+                "@" + dialogs[pid].entity.username
+                if d and getattr(d.entity, "username", None)
+                else "-"
+            )
             print(f"    {pid}  {u}  {name!r}")
     n = len(dialogs)
     print(f"\nДиалогов всего (с группами): {n}")
@@ -170,7 +175,8 @@ async def cmd_sync(client, args):
     # 1) липкие: все пользовательские папки, кроме статусных и «Люди»,
     #    считаются ручными. «Люди» — личное, тоже липкая.
     manual_folders = {
-        t: peers for t, (f, peers) in by_title.items()
+        t: peers
+        for t, (f, peers) in by_title.items()
         if t not in AUTOMATION_FOLDER_TITLES and t != FOLDER_PERSONAL
     }
     manual_peers = set().union(*manual_folders.values()) if manual_folders else set()
@@ -180,8 +186,10 @@ async def cmd_sync(client, args):
     personal_peers = by_title.get(FOLDER_PERSONAL, (None, set()))[1]
     sticky = manual_peers | personal_peers
     if manual_folders:
-        print("ручные папки (липкие): " + ", ".join(
-            f"{t}={len(p)}" for t, p in sorted(manual_folders.items())))
+        print(
+            "ручные папки (липкие): "
+            + ", ".join(f"{t}={len(p)}" for t, p in sorted(manual_folders.items()))
+        )
 
     # 2) слепок всех личных диалогов
     dialogs = {}
@@ -235,7 +243,9 @@ async def cmd_sync(client, args):
             names = {did: dialogs[did][0].name for did in want if did in dialogs}
             if dry:
                 for did in want:
-                    print(f"+ [dry] {title} (новая папка): {names.get(did, did)} ({reasons.get(did, '')})")
+                    print(
+                        f"+ [dry] {title} (новая папка): {names.get(did, did)} ({reasons.get(did, '')})"
+                    )
                 continue
             inputs = []
             for did in want:
@@ -259,9 +269,9 @@ async def cmd_sync(client, args):
             # статусные папки — событийные: убираем ТОЛЬКО переехавших
             # (в другую статусную папку или в ручные), а не всех, кого нет
             # в базе; руками/напрямую положенное остаётся на месте
-            elsewhere = set().union(*[
-                p for t2, p in plan.items() if t2 != title
-            ]) if plan else set()
+            elsewhere = (
+                set().union(*[p for t2, p in plan.items() if t2 != title]) if plan else set()
+            )
             rem = have & elsewhere
             rem &= {did for did in rem if did not in sticky}
         if not add and not rem:
@@ -269,7 +279,9 @@ async def cmd_sync(client, args):
         new_peers = (have | add) - rem
         names = {did: dialogs[did][0].name for did in add | rem if did in dialogs}
         for did in add:
-            print(f"+ {'[dry] ' if dry else ''}{title}: {names.get(did, did)} ({reasons.get(did, '')})")
+            print(
+                f"+ {'[dry] ' if dry else ''}{title}: {names.get(did, did)} ({reasons.get(did, '')})"
+            )
         for did in rem:
             print(f"- {'[dry] ' if dry else ''}{title}: {names.get(did, did)} (ушёл из папки)")
         if not dry:
@@ -289,12 +301,11 @@ async def cmd_sync(client, args):
     filters = await get_filters(client)
     current_by_title = {t: (f, peers) for t, f, peers in filters}
     manual_now_by_title = {
-        t: peers for t, (_f, peers) in current_by_title.items()
+        t: peers
+        for t, (_f, peers) in current_by_title.items()
         if t not in AUTOMATION_FOLDER_TITLES and t != FOLDER_PERSONAL
     }
-    manual_now = (
-        set().union(*manual_now_by_title.values()) if manual_now_by_title else set()
-    )
+    manual_now = set().union(*manual_now_by_title.values()) if manual_now_by_title else set()
     known = {t["id"] for t in manual_data.get("threads", [])}
     added = 0
     for did in manual_now - known - personal_peers:
@@ -304,20 +315,24 @@ async def cmd_sync(client, args):
             title for title, peers in manual_now_by_title.items() if did in peers
         )
         source = ", ".join(source_folders)
-        manual_data["threads"].append({
-            "id": did,
-            "name": f"{name} (из папки {source})",
-            "since": f"{datetime.now():%Y-%m-%d}",
-            "note": f"лежит в кастомной папке {source} — ручной",
-        })
+        manual_data["threads"].append(
+            {
+                "id": did,
+                "name": f"{name} (из папки {source})",
+                "since": f"{datetime.now():%Y-%m-%d}",
+                "note": f"лежит в кастомной папке {source} — ручной",
+            }
+        )
         added += 1
         print(f"+ РУЧНОЙ (из папки {source}): {name!r} (id={did})")
     if added and not dry:
         manual_data["updated"] = f"{datetime.now():%Y-%m-%d}"
         _save_manual(manual_data)
 
-    print(f"\nИтого: папки {sorted(target_titles)}, чатов в плане "
-          + ", ".join(f"{t}={len(v)}" for t, v in sorted(plan.items())))
+    print(
+        f"\nИтого: папки {sorted(target_titles)}, чатов в плане "
+        + ", ".join(f"{t}={len(v)}" for t, v in sorted(plan.items()))
+    )
 
 
 def main():

@@ -190,8 +190,7 @@ def main():
             ap.error("в реальном вызове нужен --goal (что сказать)")
         goal = args.goal
         if not hr:
-            print("[нет --hr: режим инициативы/догонки, демо не подставляется]",
-                  file=sys.stderr)
+            print("[нет --hr: режим инициативы/догонки, демо не подставляется]", file=sys.stderr)
     rules = (
         (ANKETA_RULES + [r for r in DEMO_ANKETA_RULES if r.startswith("П.")])
         if is_anketa
@@ -211,8 +210,10 @@ def main():
                 rules=rules,
             )
         except Exception as e:
-            print(f"попытка {attempt}: движок упал {type(e).__name__}: {str(e)[:120]}",
-                  file=sys.stderr)
+            print(
+                f"попытка {attempt}: движок упал {type(e).__name__}: {str(e)[:120]}",
+                file=sys.stderr,
+            )
             continue
         hard = [i.code for i in res.issues if i.hard]
         if hard and attempt < 3:
