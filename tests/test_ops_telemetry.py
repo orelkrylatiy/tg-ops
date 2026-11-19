@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import admin
 import ops_telemetry
 
 
@@ -44,6 +45,44 @@ class TelemetryTests(unittest.TestCase):
                     self.assertEqual(ops_telemetry.current_session_id(), "primary")
             finally:
                 ops_telemetry.HERE = original_here
+
+
+    def test_summary_deduplicates_duplicate_account_sessions(self):
+        sessions = [
+            {
+                "id": "primary",
+                "user_id": 42,
+                "status": "online",
+                "total_chats": 20,
+                "active_chats_30d": 8,
+                "unread_chats": 3,
+            },
+            {
+                "id": "backup-session",
+                "user_id": 42,
+                "status": "online",
+                "total_chats": 20,
+                "active_chats_30d": 8,
+                "unread_chats": 3,
+            },
+            {
+                "id": "secondary",
+                "user_id": 99,
+                "status": "online",
+                "total_chats": 10,
+                "active_chats_30d": 4,
+                "unread_chats": 1,
+            },
+        ]
+        with patch("admin.read_events", return_value=[]), patch(
+            "admin._pipeline_snapshot", return_value={}
+        ):
+            summary = admin.build_summary("all", "all", {"sessions": sessions})
+
+        self.assertEqual(summary["live"]["configured_sessions"], 3)
+        self.assertEqual(summary["live"]["active_chats_30d"], 12)
+        self.assertEqual(summary["live"]["total_chats"], 30)
+        self.assertEqual(summary["live"]["unread_chats"], 4)
 
     def test_resume_classifier(self):
         self.assertTrue(ops_telemetry.is_resume_file("resume/resume-react.pdf"))

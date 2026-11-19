@@ -188,12 +188,23 @@ def _selected_sessions(snapshot, session_id):
 def build_summary(period, session_id, snapshot):
     events = _filter_events(read_events(), period, session_id)
     sessions = _selected_sessions(snapshot, session_id)
+    unique_accounts = {}
+    for item in sessions:
+        account_key = item.get("user_id") or item.get("id")
+        current = unique_accounts.get(account_key)
+        if current is None or (
+            current.get("status") != "online" and item.get("status") == "online"
+        ):
+            unique_accounts[account_key] = item
+    live_sessions = list(unique_accounts.values())
     live = {
         "configured_sessions": len(sessions),
         "available_sessions": sum(item.get("status") == "online" for item in sessions),
-        "total_chats": sum(_as_int(item.get("total_chats")) for item in sessions),
-        "active_chats_30d": sum(_as_int(item.get("active_chats_30d")) for item in sessions),
-        "unread_chats": sum(_as_int(item.get("unread_chats")) for item in sessions),
+        "total_chats": sum(_as_int(item.get("total_chats")) for item in live_sessions),
+        "active_chats_30d": sum(
+            _as_int(item.get("active_chats_30d")) for item in live_sessions
+        ),
+        "unread_chats": sum(_as_int(item.get("unread_chats")) for item in live_sessions),
     }
     return {
         "generated_at": _utc_now().isoformat(timespec="seconds"),
