@@ -46,7 +46,6 @@ class TelemetryTests(unittest.TestCase):
             finally:
                 ops_telemetry.HERE = original_here
 
-
     def test_summary_deduplicates_duplicate_account_sessions(self):
         sessions = [
             {
