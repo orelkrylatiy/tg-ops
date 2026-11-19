@@ -293,7 +293,9 @@ def _activity_item(event, session_names):
 def build_activity(limit, session_id, snapshot):
     events = _filter_events(read_events(), "all", session_id)
     names = {item.get("id"): item.get("name") for item in snapshot.get("sessions") or []}
-    events.sort(key=lambda item: _event_timestamp(item) or datetime.min.replace(tzinfo=UTC), reverse=True)
+    events.sort(
+        key=lambda item: _event_timestamp(item) or datetime.min.replace(tzinfo=UTC), reverse=True
+    )
     return [_activity_item(event, names) for event in events[:limit]]
 
 
@@ -303,8 +305,14 @@ async def collect_session_snapshot():
     except Exception as exc:
         return {
             "updated_at": _utc_now().isoformat(timespec="seconds"),
-            "sessions": [{"id": "sessions-config", "name": "Реестр сессий", "status": "error",
-                          "error": type(exc).__name__}],
+            "sessions": [
+                {
+                    "id": "sessions-config",
+                    "name": "Реестр сессий",
+                    "status": "error",
+                    "error": type(exc).__name__,
+                }
+            ],
         }
 
     sessions = []
@@ -339,7 +347,9 @@ async def collect_session_snapshot():
                 continue
             me = await client.get_me()
             item["account_name"] = " ".join(
-                part for part in (getattr(me, "first_name", ""), getattr(me, "last_name", "")) if part
+                part
+                for part in (getattr(me, "first_name", ""), getattr(me, "last_name", ""))
+                if part
             )
             item["username"] = getattr(me, "username", None) or ""
             item["user_id"] = getattr(me, "id", None)
@@ -465,12 +475,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._send_json(snapshot)
             return
         if parsed.path == "/api/health":
-            self._send_json({
-                "ok": True,
-                "telemetry_available": bool(read_events()),
-                "sessions_updated_at": snapshot.get("updated_at"),
-                "refreshing": snapshot.get("refreshing", False),
-            })
+            self._send_json(
+                {
+                    "ok": True,
+                    "telemetry_available": bool(read_events()),
+                    "sessions_updated_at": snapshot.get("updated_at"),
+                    "refreshing": snapshot.get("refreshing", False),
+                }
+            )
             return
         self.send_error(404, "Not found")
 
@@ -510,7 +522,9 @@ def main():
     print(f"TG Ops Admin: http://{args.host}:{args.port}")
     print("Режим: read-only · статистика не содержит текстов сообщений")
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
-        print("ВНИМАНИЕ: внешний bind без встроенной авторизации. Используй только за защищённым VPN/proxy.")
+        print(
+            "ВНИМАНИЕ: внешний bind без встроенной авторизации. Используй только за защищённым VPN/proxy."
+        )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

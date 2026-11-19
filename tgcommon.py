@@ -110,8 +110,7 @@ def configured_sessions():
                 "name": str(entry.get("name") or session_id),
                 "session_path": session_path,
                 "enabled": bool(entry.get("enabled", True)),
-                "exists": os.path.isfile(session_path + ".session")
-                or os.path.isfile(session_path),
+                "exists": os.path.isfile(session_path + ".session") or os.path.isfile(session_path),
             }
         )
     return result
@@ -123,9 +122,7 @@ async def connect_any(session_path=None, attempts=4):
     Existing callers keep using the default userbot session. ``attempts=1`` is useful
     for read-only health checks that should not wait behind a running worker.
     """
-    session = _session_base(
-        session_path or os.environ.get("TG_OPS_SESSION") or SESSION
-    )
+    session = _session_base(session_path or os.environ.get("TG_OPS_SESSION") or SESSION)
     retry_count = max(1, int(attempts))
     last = None
     for proxy in (None, PROXY):
