@@ -196,8 +196,9 @@ async def cmd_send(client, args):
         )
         sys.exit(4)
     await client.send_message(entity, args.text, **_send_options(args))
+    message_type = "reply" if last and not last[0].out else "new"
     record_event(
-        "message_sent", category="manual", message_type="new",
+        "message_sent", category="manual", message_type=message_type,
         chat_id=entity.id, chat_name=name, source="tg.py"
     )
     print(f"OK → {name!r}: {args.text[:100]}")

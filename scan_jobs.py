@@ -349,6 +349,10 @@ async def cmd_scan(client, args):
         try:
             msgs = await fetch_messages(client, d.entity, args.n, since)
         except Exception as e:
+            record_event(
+                "operation_failed", operation="vacancy_scan_channel",
+                error_type=type(e).__name__, chat_name=d.name, source="scan_jobs.py"
+            )
             print(f"!! {d.name!r}: {e}")
             continue
         posts_scanned += len(msgs)

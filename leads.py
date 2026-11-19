@@ -464,6 +464,10 @@ async def cmd_scan(client, args):
         except Exception as e:
             posts_scanned += count
             channels_scanned += 1
+            record_event(
+                "operation_failed", operation="lead_scan_channel",
+                error_type=type(e).__name__, chat_name=name, source="leads.py"
+            )
             print(f"!! {name!r}: {e}")
             continue
         posts_scanned += count
@@ -624,6 +628,10 @@ async def cmd_prescribe(client, args):
         except Exception as e:
             posts_scanned += scanned
             channels_scanned += 1
+            record_event(
+                "operation_failed", operation="lead_prescribe_channel",
+                error_type=type(e).__name__, chat_name=name, source="leads.py"
+            )
             print(f"!! {name!r}: {e}")
             continue
         posts_scanned += scanned
@@ -974,6 +982,11 @@ async def cmd_outreach(client, args):
             err = str(e).lower()
             stopped_reason = (
                 "spam" if "spam" in err else "flood" if "flood" in err else type(e).__name__
+            )
+            record_event(
+                "operation_failed", operation="cold_outreach",
+                error_type=type(e).__name__, reason=stopped_reason,
+                chat_name=r["value"], source="leads.py"
             )
             print(f"    !! не отправлено ({stopped_reason}): {e}")
             break  # FloodWait/сеть — дальше не долбим, продолжится со следующего запуска

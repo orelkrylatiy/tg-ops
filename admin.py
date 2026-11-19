@@ -365,7 +365,7 @@ async def collect_session_snapshot():
             )
             item["username"] = getattr(me, "username", None) or ""
             item["user_id"] = getattr(me, "id", None)
-            async for dialog in client.iter_dialogs(limit=5000):
+            async for dialog in client.iter_dialogs(limit=None):
                 entity = dialog.entity
                 if not isinstance(entity, User) or getattr(entity, "bot", False):
                     continue
