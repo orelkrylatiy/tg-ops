@@ -334,7 +334,10 @@
       $("leads-total").textContent = fmt(pipeline.leads_total) + " ЛИДОВ";
       $("pipeline-extra").textContent =
         "В очереди: " + fmt(pipeline.leads_queued) + " · На проверке: " +
-        fmt(pipeline.leads_review) + " · Вакансий в базе: " + fmt(pipeline.vacancies_total);
+        fmt(pipeline.leads_review) + " · Вакансий в базе: " + fmt(pipeline.vacancies_total) +
+        " · Новых вакансий за период: " + fmt(m.new_vacancies) +
+        " · Холодные: " + fmt(m.cold_outreach) + " · Догонки: " + fmt(m.followups) +
+        " · Тёплые: " + fmt(m.warm_returns) + " · Входящие: " + fmt(m.inbound_messages);
       renderPipeline(pipeline.leads_by_status || {});
       renderSessions(data.sessions || []);
     }

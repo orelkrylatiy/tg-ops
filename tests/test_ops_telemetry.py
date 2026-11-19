@@ -1,6 +1,8 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import ops_telemetry
 
@@ -28,6 +30,20 @@ class TelemetryTests(unittest.TestCase):
         self.assertEqual(events[0]["event"], "message_sent")
         self.assertNotIn("text", events[0])
         self.assertNotIn("caption", events[0])
+
+    def test_session_id_uses_configured_registry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original_here = ops_telemetry.HERE
+            ops_telemetry.HERE = Path(directory)
+            (Path(directory) / "sessions.json").write_text(
+                '{"sessions":[{"id":"primary","session":"userbot"}]}',
+                encoding="utf-8",
+            )
+            try:
+                with patch.dict(os.environ, {"TG_OPS_SESSION": "userbot"}, clear=True):
+                    self.assertEqual(ops_telemetry.current_session_id(), "primary")
+            finally:
+                ops_telemetry.HERE = original_here
 
     def test_resume_classifier(self):
         self.assertTrue(ops_telemetry.is_resume_file("resume/resume-react.pdf"))

@@ -115,6 +115,7 @@ def configured_sessions():
         )
     return result
 
+
 async def connect_any(session_path=None, attempts=4):
     """Connect a named session directly, then fall back to the configured SOCKS proxy.
 

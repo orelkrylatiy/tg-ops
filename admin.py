@@ -166,6 +166,8 @@ def _event_metrics(events):
             metrics["operation_errors"] += 1
         elif kind == "cron_step":
             metrics["cron_steps"] += 1
+            if event.get("success") is False:
+                metrics["operation_errors"] += 1
     return metrics
 
 
@@ -262,6 +264,16 @@ def _activity_item(event, session_names):
     elif kind == "inbound_message":
         title = "Входящее сообщение"
         detail = event.get("chat_name") or str(event.get("chat_id") or "Чат")
+    elif kind == "file_sent":
+        title = "Файл отправлен"
+        detail = event.get("chat_name") or str(event.get("chat_id") or "Чат")
+    elif kind == "cron_run":
+        title = "Автопилот завершён" if event.get("status") == "completed" else "Автопилот"
+        detail = (
+            f"Холодные: {_as_int(event.get('sent_cold'))} · "
+            f"догонки: {_as_int(event.get('sent_followup'))} · "
+            f"тёплые: {_as_int(event.get('sent_warm'))}"
+        )
     elif kind == "scan_completed":
         title = "Сканирование завершено"
         detail = (

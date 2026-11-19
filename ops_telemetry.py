@@ -27,9 +27,37 @@ _SENSITIVE_FIELDS = {
 
 
 def current_session_id() -> str:
-    """Return a stable, non-secret identifier for the account used by this process."""
-    raw = os.environ.get("TG_OPS_SESSION_ID") or os.environ.get("TG_OPS_SESSION") or "userbot"
-    name = str(raw).replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+    """Resolve the current session path to the configured dashboard session ID."""
+    explicit_id = os.environ.get("TG_OPS_SESSION_ID")
+    if explicit_id:
+        return explicit_id
+
+    raw_session = os.environ.get("TG_OPS_SESSION") or "userbot"
+
+    def normalise(path):
+        value = os.path.expandvars(os.path.expanduser(str(path)))
+        if value.lower().endswith(".session"):
+            value = value[:-8]
+        if not os.path.isabs(value):
+            value = os.path.join(str(HERE), value)
+        return os.path.normcase(os.path.abspath(value))
+
+    target = normalise(raw_session)
+    config_path = HERE / "sessions.json"
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        for item in config.get("sessions", []):
+            if not isinstance(item, dict):
+                continue
+            configured_path = item.get("session") or item.get("path")
+            if configured_path and normalise(configured_path) == target:
+                return str(
+                    item.get("id") or target.replace("\\\\", "/").rsplit("/", 1)[-1]
+                )
+    except (OSError, json.JSONDecodeError, TypeError, AttributeError):
+        pass
+
+    name = str(raw_session).replace("\\\\", "/").rstrip("/").rsplit("/", 1)[-1]
     if name.lower().endswith(".session"):
         name = name[:-8]
     return name or "userbot"
