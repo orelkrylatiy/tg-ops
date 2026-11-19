@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1118">
+  <title>TG Ops — Admin</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1118;
+      --panel: #151c26;
+      --panel-2: #192230;
+      --border: #263244;
+      --text: #edf2f8;
+      --muted: #8d9bad;
+      --accent: #a7e36b;
+      --blue: #78a9ff;
+      --purple: #b39aff;
+      --red: #ff7d86;
+      --amber: #f2c46d;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse at 8% 0%, rgba(120,169,255,.08), transparent 32rem),
+        radial-gradient(ellipse at 90% 0%, rgba(167,227,107,.06), transparent 28rem),
+        var(--bg);
+      color: var(--text);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, select { font: inherit; }
+    .shell { max-width: 1440px; margin: 0 auto; padding: 30px 34px 48px; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 24px; margin-bottom: 28px;
+    }
+    .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .brand-mark {
+      display: grid; place-items: center; width: 42px; height: 42px;
+      border: 1px solid rgba(167,227,107,.35); border-radius: 13px;
+      background: rgba(167,227,107,.1); color: var(--accent);
+      font-size: 14px; font-weight: 800; letter-spacing: -.06em;
+    }
+    h1 { margin: 0; font-size: 20px; letter-spacing: -.035em; font-weight: 720; }
+    .subtitle { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 8px; color: var(--muted);
+      border: 1px solid var(--border); background: rgba(21,28,38,.72);
+      border-radius: 999px; padding: 8px 12px; font-size: 12px;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px rgba(167,227,107,.55); }
+    .button {
+      cursor: pointer; border: 1px solid var(--border); border-radius: 10px;
+      background: var(--panel-2); color: var(--text); padding: 9px 13px;
+      transition: border-color .15s, transform .15s;
+    }
+    .button:hover { border-color: #52657f; transform: translateY(-1px); }
+    .button:disabled { opacity: .55; cursor: wait; transform: none; }
+    .toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; margin-bottom: 18px;
+    }
+    .section-kicker { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .filters { display: flex; gap: 9px; }
+    select {
+      color: var(--text); background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 9px 34px 9px 12px; outline: none;
+    }
+    select:focus, .button:focus-visible { border-color: var(--accent); outline: 2px solid rgba(167,227,107,.14); }
+    .grid { display: grid; gap: 14px; }
+    .stats { grid-template-columns: repeat(6, minmax(0, 1fr)); margin-bottom: 14px; }
+    .card {
+      min-width: 0; background: linear-gradient(145deg, rgba(25,34,48,.96), rgba(19,26,37,.96));
+      border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: 0 12px 35px rgba(0,0,0,.12);
+    }
+    .stat { padding: 17px 18px 16px; min-height: 126px; }
+    .stat-label { color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 8px; }
+    .stat-value { font-size: clamp(25px, 2.3vw, 34px); line-height: 1.2; letter-spacing: -.055em; font-weight: 730; margin: 13px 0 5px; }
+    .stat-foot { color: #738196; font-size: 11px; }
+    .accent { color: var(--accent); }
+    .blue { color: var(--blue); }
+    .purple { color: var(--purple); }
+    .amber { color: var(--amber); }
+    .red { color: var(--red); }
+    .main-grid { grid-template-columns: minmax(0, 1.55fr) minmax(320px, .9fr); margin-bottom: 14px; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 0; }
+    .panel-title { margin: 0; font-size: 14px; font-weight: 680; letter-spacing: -.015em; }
+    .panel-subtitle { color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .chart-wrap { padding: 12px 16px 12px; }
+    canvas { display: block; width: 100%; height: 220px; }
+    .chart-legend { display: flex; gap: 18px; color: var(--muted); font-size: 11px; padding: 0 4px 4px; }
+    .legend-dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 6px; }
+    .pipeline { padding: 18px 20px 20px; }
+    .pipeline-row { display: grid; grid-template-columns: 76px 1fr 34px; align-items: center; gap: 10px; margin: 14px 0; }
+    .pipeline-label { color: #b5c0ce; font-size: 12px; }
+    .track { height: 7px; background: #222d3c; border-radius: 99px; overflow: hidden; }
+    .fill { height: 100%; border-radius: inherit; background: var(--accent); min-width: 0; }
+    .pipeline-count { color: var(--text); font-variant-numeric: tabular-nums; text-align: right; font-size: 12px; }
+    .lower-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); margin-bottom: 14px; }
+    .sessions { padding: 16px 18px 18px; display: grid; gap: 10px; }
+    .session {
+      border: 1px solid #2a3749; background: rgba(12,17,25,.34);
+      border-radius: 12px; padding: 13px 14px;
+    }
+    .session-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .session-name { font-weight: 650; font-size: 13px; }
+    .session-account { color: var(--muted); font-size: 11px; margin-top: 2px; overflow-wrap: anywhere; }
+    .session-status { font-size: 10px; border-radius: 999px; padding: 4px 8px; white-space: nowrap; border: 1px solid var(--border); color: var(--muted); }
+    .session-status.online { color: var(--accent); border-color: rgba(167,227,107,.25); background: rgba(167,227,107,.07); }
+    .session-status.busy { color: var(--amber); border-color: rgba(242,196,109,.25); }
+    .session-status.error, .session-status.unauthorized, .session-status.missing { color: var(--red); border-color: rgba(255,125,134,.25); }
+    .session-metrics { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 12px; color: var(--muted); font-size: 11px; }
+    .session-metrics b { color: var(--text); font-weight: 650; margin-right: 3px; }
+    .empty { color: var(--muted); text-align: center; padding: 26px 12px; font-size: 12px; }
+    .activity { overflow: hidden; }
+    .activity-list { padding: 7px 20px 12px; }
+    .activity-row {
+      display: grid; grid-template-columns: 105px minmax(0,1fr) auto; gap: 14px;
+      align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(38,50,68,.72);
+    }
+    .activity-row:last-child { border-bottom: 0; }
+    .activity-time { color: #748399; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .activity-title { font-size: 12px; font-weight: 620; }
+    .activity-detail { color: var(--muted); font-size: 11px; margin-top: 2px; overflow-wrap: anywhere; }
+    .activity-session { color: #8190a4; font-size: 10px; white-space: nowrap; }
+    .note {
+      color: #77869a; font-size: 11px; line-height: 1.6; margin-top: 15px;
+      padding: 0 2px;
+    }
+    .error-banner {
+      display: none; border: 1px solid rgba(255,125,134,.25); color: #ffb4ba;
+      background: rgba(255,125,134,.07); border-radius: 11px; padding: 10px 13px;
+      margin-bottom: 14px; font-size: 12px;
+    }
+    @media (max-width: 1100px) {
+      .stats { grid-template-columns: repeat(3, minmax(0,1fr)); }
+      .main-grid, .lower-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 650px) {
+      .shell { padding: 20px 14px 34px; }
+      header, .toolbar { align-items: flex-start; flex-direction: column; }
+      .header-right { width: 100%; justify-content: space-between; }
+      .filters { width: 100%; }
+      .filters select { flex: 1; min-width: 0; }
+      .stats { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; }
+      .stat { min-height: 112px; padding: 14px; }
+      .stat-value { font-size: 27px; }
+      .activity-row { grid-template-columns: 74px minmax(0,1fr); gap: 9px; }
+      .activity-session { grid-column: 2; }
+      .panel-head { padding-left: 15px; padding-right: 15px; }
+      .activity-list { padding-left: 15px; padding-right: 15px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <div class="brand-mark">TG</div>
+        <div>
+          <h1>TG Ops <span style="color:var(--muted);font-weight:500">/ Admin</span></h1>
+          <div class="subtitle">Операционная панель Telegram-аутрича</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="status-pill"><span class="dot"></span><span id="system-status">Сбор данных</span></div>
+        <button class="button" id="refresh-button" type="button">↻ Обновить</button>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <div>
+        <div class="section-kicker">Обзор системы</div>
+        <div class="subtitle" id="updated-at">Загружаю состояние…</div>
+      </div>
+      <div class="filters">
+        <select id="period">
+          <option value="24h">Последние 24 часа</option>
+          <option value="7d">7 дней</option>
+          <option value="30d" selected>30 дней</option>
+          <option value="90d">90 дней</option>
+          <option value="all">Вся история телеметрии</option>
+        </select>
+        <select id="session-filter"><option value="all">Все сессии</option></select>
+      </div>
+    </div>
+
+    <div class="error-banner" id="error-banner"></div>
+
+    <section class="grid stats">
+      <article class="card stat">
+        <div class="stat-label">Активные чаты <span class="accent">LIVE</span></div>
+        <div class="stat-value" id="active-chats">—</div>
+        <div class="stat-foot">Личные диалоги с активностью за 30 дней</div>
+      </article>
+      <article class="card stat">
+        <div class="stat-label">Исходящие сообщения <span class="blue">↗</span></div>
+        <div class="stat-value" id="outbound">—</div>
+        <div class="stat-foot">Фактически отправлено за период</div>
+      </article>
+      <article class="card stat">
+        <div class="stat-label">Ответы отправлены <span class="purple">↳</span></div>
+        <div class="stat-value" id="replies">—</div>
+        <div class="stat-foot">Reply и автоответы в диалогах</div>
+      </article>
+      <article class="card stat">
+        <div class="stat-label">Резюме отправлено <span class="amber">PDF</span></div>
+        <div class="stat-value" id="resumes">—</div>
+        <div class="stat-foot">Фактически переданные файлы</div>
+      </article>
+      <article class="card stat">
+        <div class="stat-label">Сканы <span class="accent">⌕</span></div>
+        <div class="stat-value" id="scans">—</div>
+        <div class="stat-foot">Завершённые проходы сканеров</div>
+      </article>
+      <article class="card stat">
+        <div class="stat-label">Постов просмотрено <span class="blue">#</span></div>
+        <div class="stat-value" id="posts-scanned">—</div>
+        <div class="stat-foot">Суммарно по завершённым сканам</div>
+      </article>
+    </section>
+
+    <section class="grid main-grid">
+      <article class="card">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Активность</h2>
+            <div class="panel-subtitle">Отправки, ответы и результаты сканирования</div>
+          </div>
+          <div class="section-kicker" id="chart-range">30 ДНЕЙ</div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="activity-chart" aria-label="График активности"></canvas>
+          <div class="chart-legend">
+            <span><i class="legend-dot" style="background:var(--accent)"></i>Сообщения</span>
+            <span><i class="legend-dot" style="background:var(--blue)"></i>Сканы</span>
+            <span><i class="legend-dot" style="background:var(--purple)"></i>Резюме</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Воронка контактов</h2>
+            <div class="panel-subtitle">Текущее состояние базы лидов</div>
+          </div>
+          <div class="section-kicker" id="leads-total">— ЛИДОВ</div>
+        </div>
+        <div class="pipeline" id="pipeline"></div>
+        <div style="padding:0 20px 18px;color:var(--muted);font-size:11px" id="pipeline-extra"></div>
+      </article>
+    </section>
+
+    <section class="grid lower-grid">
+      <article class="card">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Telegram-сессии</h2>
+            <div class="panel-subtitle">Состояние аккаунтов и количество личных диалогов</div>
+          </div>
+          <div class="section-kicker" id="session-count">—</div>
+        </div>
+        <div class="sessions" id="sessions">
+          <div class="empty">Проверяю Telegram-сессии…</div>
+        </div>
+      </article>
+
+      <article class="card activity">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Последние события</h2>
+            <div class="panel-subtitle">Фактические действия системы без содержимого переписок</div>
+          </div>
+        </div>
+        <div class="activity-list" id="activity-list">
+          <div class="empty">Событий пока нет</div>
+        </div>
+      </article>
+    </section>
+
+    <div class="note">
+      Счётчики отправок и сканов начинают накапливаться после установки телеметрии.
+      Текущая воронка лидов и общее число вакансий читаются из существующих локальных баз.
+      Активный чат — личный диалог, в котором последнее сообщение было за последние 30 дней.
+      Панель работает в режиме только чтения и не отправляет сообщения.
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const state = { range: "30d", session: "all", summary: null, timeline: [] };
+    const fmt = (value) => new Intl.NumberFormat("ru-RU").format(Number(value || 0));
+    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[char]);
+    const dateTime = (value) => {
+      if (!value) return "нет данных";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? "нет данных" :
+        new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(date);
+    };
+
+    function queryString() {
+      return "range=" + encodeURIComponent(state.range) + "&session=" + encodeURIComponent(state.session);
+    }
+
+    async function api(path, options) {
+      const response = await fetch(path, options);
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return response.json();
+    }
+
+    function renderSummary(data) {
+      const m = data.metrics || {};
+      const live = data.live || {};
+      const pipeline = data.pipeline || {};
+      $("active-chats").textContent = fmt(live.active_chats_30d);
+      $("outbound").textContent = fmt(m.outbound_messages);
+      $("replies").textContent = fmt(m.replies_sent);
+      $("resumes").textContent = fmt(m.resumes_sent);
+      $("scans").textContent = fmt(m.scan_runs);
+      $("posts-scanned").textContent = fmt(m.posts_scanned);
+      $("updated-at").textContent = "Обновлено " + dateTime(data.sessions_updated_at) +
+        " · " + fmt(live.available_sessions) + "/" + fmt(live.configured_sessions) + " сессий доступны";
+      $("system-status").textContent = data.refreshing ? "Обновляю данные" :
+        (live.available_sessions ? "Система доступна" : "Нет доступных сессий");
+      $("leads-total").textContent = fmt(pipeline.leads_total) + " ЛИДОВ";
+      $("pipeline-extra").textContent =
+        "В очереди: " + fmt(pipeline.leads_queued) + " · На проверке: " +
+        fmt(pipeline.leads_review) + " · Вакансий в базе: " + fmt(pipeline.vacancies_total);
+      renderPipeline(pipeline.leads_by_status || {});
+      renderSessions(data.sessions || []);
+    }
+
+    function renderPipeline(statuses) {
+      const rows = [
+        ["new", "Новые", "var(--blue)"],
+        ["contacted", "Написали", "var(--accent)"],
+        ["replied", "Ответили", "var(--purple)"],
+        ["warm", "Тёплые", "var(--amber)"],
+        ["declined", "Закрытые", "var(--red)"]
+      ];
+      const max = Math.max(1, ...rows.map((row) => Number(statuses[row[0]] || 0)));
+      $("pipeline").innerHTML = rows.map((row) => {
+        const count = Number(statuses[row[0]] || 0);
+        const width = Math.round((count / max) * 100);
+        return '<div class="pipeline-row"><div class="pipeline-label">' + row[1] +
+          '</div><div class="track"><div class="fill" style="width:' + width +
+          '%;background:' + row[2] + '"></div></div><div class="pipeline-count">' +
+          fmt(count) + '</div></div>';
+      }).join("");
+    }
+
+    function statusLabel(status) {
+      return ({
+        online: "Доступна", busy: "Занята", missing: "Нет файла",
+        unauthorized: "Нужен вход", disabled: "Отключена", error: "Ошибка"
+      })[status] || status || "Неизвестно";
+    }
+
+    function renderSessions(sessions) {
+      $("session-count").textContent = sessions.length + " АККАУНТ(ОВ)";
+      if (!sessions.length) {
+        $("sessions").innerHTML = '<div class="empty">Сессии не найдены. Проверь sessions.json.</div>';
+        return;
+      }
+      $("sessions").innerHTML = sessions.map((item) => {
+        const status = item.status || "unknown";
+        const account = [item.account_name, item.username ? "@" + item.username : ""].filter(Boolean).join(" · ");
+        const identity = account || (item.user_id ? "ID " + item.user_id : "Аккаунт не определён");
+        return '<div class="session"><div class="session-top"><div><div class="session-name">' +
+          escapeHtml(item.name || item.id) + '</div><div class="session-account">' +
+          escapeHtml(identity) + '</div></div><span class="session-status ' +
+          escapeHtml(status) + '">' + escapeHtml(statusLabel(status)) +
+          '</span></div><div class="session-metrics"><span><b>' + fmt(item.total_chats) +
+          '</b> личных чатов</span><span><b>' + fmt(item.active_chats_30d) +
+          '</b> активных</span><span><b>' + fmt(item.unread_chats) +
+          '</b> непрочитанных</span></div></div>';
+      }).join("");
+    }
+
+    function renderActivity(items) {
+      if (!items.length) {
+        $("activity-list").innerHTML = '<div class="empty">Пока нет событий телеметрии. Они появятся после следующих операций.</div>';
+        return;
+      }
+      $("activity-list").innerHTML = items.map((item) =>
+        '<div class="activity-row"><div class="activity-time">' + escapeHtml(dateTime(item.ts)) +
+        '</div><div><div class="activity-title">' + escapeHtml(item.title) +
+        '</div><div class="activity-detail">' + escapeHtml(item.detail) +
+        '</div></div><div class="activity-session">' +
+        escapeHtml(item.session_name || item.session_id) + '</div></div>'
+      ).join("");
+    }
+
+    function drawChart(days) {
+      const canvas = $("activity-chart");
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+      canvas.height = Math.floor(220 * ratio);
+      const ctx = canvas.getContext("2d");
+      ctx.scale(ratio, ratio);
+      const width = rect.width;
+      const height = 220;
+      const pad = { top: 12, right: 10, bottom: 28, left: 28 };
+      const chartW = width - pad.left - pad.right;
+      const chartH = height - pad.top - pad.bottom;
+      const max = Math.max(1, ...days.map((day) => day.messages + day.scans + day.resumes));
+      ctx.clearRect(0, 0, width, height);
+      ctx.font = "10px system-ui";
+      ctx.fillStyle = "#748399";
+      ctx.strokeStyle = "rgba(116,131,153,.18)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + chartH - (chartH * i / 4);
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(width - pad.right, y); ctx.stroke();
+        ctx.fillText(String(Math.round(max * i / 4)), 2, y + 3);
+      }
+      const slot = chartW / Math.max(1, days.length);
+      const barW = Math.max(2, Math.min(15, slot * .62));
+      days.forEach((day, index) => {
+        const x = pad.left + index * slot + (slot - barW) / 2;
+        let y = pad.top + chartH;
+        const parts = [
+          [day.messages, "#a7e36b"],
+          [day.scans, "#78a9ff"],
+          [day.resumes, "#b39aff"]
+        ];
+        parts.forEach((part) => {
+          const value = part[0];
+          const color = part[1];
+          const h = (Number(value || 0) / max) * chartH;
+          y -= h;
+          ctx.fillStyle = color;
+          ctx.fillRect(x, y, barW, Math.max(value ? 2 : 0, h));
+        });
+        if (index === 0 || index === days.length - 1 || index % Math.ceil(days.length / 6) === 0) {
+          const label = day.date.slice(5).replace("-", ".");
+          ctx.fillStyle = "#748399";
+          ctx.textAlign = "center";
+          ctx.fillText(label, x + barW / 2, height - 8);
+        }
+      });
+      ctx.textAlign = "start";
+    }
+
+    async function load() {
+      $("error-banner").style.display = "none";
+      try {
+        const qs = queryString();
+        const results = await Promise.all([
+          api("/api/summary?" + qs),
+          api("/api/timeline?" + qs),
+          api("/api/activity?" + qs + "&limit=18"),
+          api("/api/sessions")
+        ]);
+        const summary = results[0];
+        const timeline = results[1];
+        const activity = results[2];
+        const sessions = results[3];
+        state.summary = summary;
+        state.timeline = timeline.days || [];
+        renderSummary(summary);
+        renderActivity(activity.items || []);
+        drawChart(state.timeline);
+        updateSessionFilter(sessions.sessions || []);
+      } catch (error) {
+        $("error-banner").textContent = "Не удалось загрузить данные: " + error.message;
+        $("error-banner").style.display = "block";
+        $("system-status").textContent = "Ошибка загрузки";
+      }
+    }
+
+    function updateSessionFilter(sessions) {
+      const select = $("session-filter");
+      const current = select.value || state.session;
+      const options = ['<option value="all">Все сессии</option>'].concat(
+        sessions.map((item) => '<option value="' + escapeHtml(item.id) + '">' +
+          escapeHtml(item.name || item.id) + '</option>')
+      );
+      select.innerHTML = options.join("");
+      if ([...select.options].some((option) => option.value === current)) {
+        select.value = current;
+      }
+    }
+
+    $("period").addEventListener("change", (event) => {
+      state.range = event.target.value;
+      $("chart-range").textContent = event.target.selectedOptions[0].text.toUpperCase();
+      load();
+    });
+    $("session-filter").addEventListener("change", (event) => {
+      state.session = event.target.value;
+      load();
+    });
+    $("refresh-button").addEventListener("click", async () => {
+      const button = $("refresh-button");
+      button.disabled = true;
+      button.textContent = "Обновляю…";
+      try {
+        await api("/api/refresh", { method: "POST" });
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        await load();
+      } finally {
+        button.disabled = false;
+        button.textContent = "↻ Обновить";
+      }
+    });
+    window.addEventListener("resize", () => drawChart(state.timeline));
+    $("chart-range").textContent = "30 ДНЕЙ";
+    load();
+    setInterval(load, 60000);
+  </script>
+</body>
+</html>

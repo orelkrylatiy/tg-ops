@@ -28,6 +28,8 @@ import sys
 import time
 from datetime import datetime
 
+from ops_telemetry import record_event
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEADS = os.path.join(HERE, "leads")
 STATE = os.path.join(LEADS, "cron-state.json")
@@ -83,6 +85,7 @@ def acquire_lock():
 
 def run_step(name, cmd):
     print(f"\n=== {name}: py {' '.join(cmd)}")
+    started = time.monotonic()
     p = subprocess.run(
         [sys.executable] + cmd,
         cwd=HERE,
@@ -90,6 +93,10 @@ def run_step(name, cmd):
         text=True,
         encoding="utf-8",
         errors="replace",
+    )
+    record_event(
+        "cron_step", step=name, success=p.returncode == 0,
+        duration_ms=round((time.monotonic() - started) * 1000), source="cron-run.py"
     )
     if (p.stdout or "").strip():
         print(p.stdout.rstrip())
@@ -142,6 +149,8 @@ def main():
         print(f"[{stamp()}] !! другой прогон держит лок {LOCK} — выходим")
         return 1
 
+    record_event("cron_run", status="started", dry_run=args.dry_run, profile=args.profile)
+    completed = False
     st = load_state()
     if st.get("date") != f"{datetime.now():%Y-%m-%d}":
         st = {"date": f"{datetime.now():%Y-%m-%d}", "sent_cold": 0, "sent_followup": 0,
@@ -242,8 +251,15 @@ def main():
             f"\n[{stamp()}] итог за {st['date']}: догонок {st['sent_followup']}, "
             f"тёплых {st.get('sent_warm', 0)}, холодных {st['sent_cold']} из лимита {args.daily_cap}"
         )
+        completed = True
         return 0
     finally:
+        record_event(
+            "cron_run", status="completed" if completed else "failed",
+            sent_cold=st.get("sent_cold", 0),
+            sent_followup=st.get("sent_followup", 0),
+            sent_warm=st.get("sent_warm", 0), source="cron-run.py"
+        )
         save_state(st)
         try:
             os.remove(LOCK)

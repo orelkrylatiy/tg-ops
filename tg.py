@@ -32,6 +32,7 @@ from pathlib import Path
 from telethon.tl.functions.messages import SendReactionRequest
 from telethon.tl.types import ReactionEmoji
 
+from ops_telemetry import is_resume_file, record_event
 from tgcommon import SERVICE_CHAT_IDS, connect_any, load_phone
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -195,6 +196,10 @@ async def cmd_send(client, args):
         )
         sys.exit(4)
     await client.send_message(entity, args.text, **_send_options(args))
+    record_event(
+        "message_sent", category="manual", message_type="new",
+        chat_id=entity.id, chat_name=name, source="tg.py"
+    )
     print(f"OK → {name!r}: {args.text[:100]}")
 
 
@@ -231,6 +236,10 @@ async def cmd_reply(client, args):
     await client.send_message(
         entity, args.text, reply_to=target.id, **_send_options(args)
     )
+    record_event(
+        "message_sent", category="manual_reply", message_type="reply",
+        chat_id=entity.id, chat_name=name, source="tg.py"
+    )
     if args.react:
         await client(
             SendReactionRequest(
@@ -258,6 +267,15 @@ async def cmd_sendfile(client, args):
         print(f"Чат {args.chat!r} не найден")
         sys.exit(3)
     await client.send_file(entity, args.path, caption=caption, **_send_options(args))
+    record_event(
+        "file_sent", category="manual", chat_id=entity.id, chat_name=name,
+        file_name=os.path.basename(args.path), source="tg.py"
+    )
+    if is_resume_file(args.path):
+        record_event(
+            "resume_sent", chat_id=entity.id, chat_name=name,
+            file_name=os.path.basename(args.path), source="tg.py"
+        )
     print(f"OK → {name!r}: {os.path.basename(args.path)}")
 
 

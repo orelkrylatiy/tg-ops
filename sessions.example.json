@@ -1,0 +1,10 @@
+{
+  "sessions": [
+    {
+      "id": "primary",
+      "name": "Основной аккаунт",
+      "session": "userbot",
+      "enabled": true
+    }
+  ]
+}

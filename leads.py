@@ -38,6 +38,7 @@ from datetime import UTC, datetime, timedelta
 
 from telethon.tl.types import User
 
+from ops_telemetry import record_event
 from tgcommon import HERE, SERVICE_CHAT_IDS, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -437,6 +438,8 @@ async def cmd_scan(client, args):
     targets = await _resolve_channels(client, tokens)
     print(f"Скан лидов: {len(targets)} каналов, до {args.limit} постов на канал…")
     total_new = 0
+    posts_scanned = 0
+    channels_scanned = 0
     for ent, name in targets:
         count = new = 0
         try:
@@ -459,12 +462,21 @@ async def cmd_scan(client, args):
                     username_only=not args.all_types,
                 )
         except Exception as e:
+            posts_scanned += count
+            channels_scanned += 1
             print(f"!! {name!r}: {e}")
             continue
+        posts_scanned += count
+        channels_scanned += 1
         total_new += new
         print(f"  {name!r}: постов {count}, новых лидов {new}")
     flush()
     print(f"Итого новых лидов: {total_new} → {os.path.relpath(LEADS_JSONL, HERE)}")
+    record_event(
+        "scan_completed", scan_type="leads", profile=args.profile or "active",
+        channels_scanned=channels_scanned, posts_scanned=posts_scanned,
+        leads_found=total_new, source="leads.py"
+    )
 
 
 async def cmd_prescribe(client, args):
@@ -494,6 +506,8 @@ async def cmd_prescribe(client, args):
             record["post_kind"] = "review"
             record["note"] = "автопрописка: повторная проверка после отмены фильтра цены"
     stats = {"new": 0, "queued": 0, "declined": 0, "review": 0, "existing": 0}
+    posts_scanned = 0
+    channels_scanned = 0
     ready = []
     admitted = []
     queued = []
@@ -608,8 +622,12 @@ async def cmd_prescribe(client, args):
                     elif bucket == "review":
                         review.append(record)
         except Exception as e:
+            posts_scanned += scanned
+            channels_scanned += 1
             print(f"!! {name!r}: {e}")
             continue
+        posts_scanned += scanned
+        channels_scanned += 1
         print(f"  {name!r}: свежих постов {scanned}")
 
     # Старые raw-scan записи тоже должны пройти новые правила. Иначе
@@ -746,6 +764,12 @@ async def cmd_prescribe(client, args):
             "daily_limit": args.daily_new_limit,
             "already_admitted_today": admitted_today,
         },
+    )
+    record_event(
+        "scan_completed", scan_type="prescribe", profile=profile_name,
+        channels_scanned=channels_scanned, posts_scanned=posts_scanned,
+        leads_found=len(seen_this_run), ready_leads=len(admitted),
+        queued_leads=len(queued), review_leads=len(review), source="leads.py"
     )
 
 
@@ -916,8 +940,16 @@ async def cmd_outreach(client, args):
                 print(f"    !! тред уже есть ({who}, от {last.date:%d.%m}) → пропуск")
                 continue
             await client.send_message(ent, body)
+            record_event(
+                "message_sent", category="cold_outreach", message_type="new",
+                chat_id=ent.id, chat_name=r["value"], source="leads.py"
+            )
             if args.resume:
                 await client.send_file(ent, args.resume, caption="")
+                record_event(
+                    "resume_sent", chat_id=ent.id, chat_name=r["value"],
+                    file_name=os.path.basename(args.resume), source="leads.py"
+                )
             r["status"] = "contacted"
             r["contacted_at"] = _now_iso()
             r["note"] = "outreach" + (" +resume" if args.resume else "")
@@ -1272,6 +1304,10 @@ async def cmd_followups(client, args):
             # Догонка отправляется после нашего сообщения и не имеет
             # естественного входящего сообщения для Reply.
             await client.send_message(ent, text)
+            record_event(
+                "message_sent", category="followup", message_type="followup",
+                chat_id=ent.id, chat_name=value, source="leads.py"
+            )
         except Exception as e:
             err = str(e).lower()
             if "no user has" in err:
@@ -1424,6 +1460,10 @@ async def cmd_warm_due(client, args):
             ent = await client.get_entity(value.lstrip("@"))
             # Тёплый возврат продолжает тред: отвечаем на последнее сообщение HR.
             await client.send_message(ent, text, reply_to=v2.get("their_last_id"))
+            record_event(
+                "message_sent", category="warm_return", message_type="reply",
+                chat_id=ent.id, chat_name=value, source="leads.py"
+            )
         except Exception as e:
             err = str(e).lower()
             if "no user has" in err:

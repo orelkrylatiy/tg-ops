@@ -21,6 +21,7 @@ import subprocess
 import sys
 import time
 
+from ops_telemetry import record_event
 from tgcommon import HERE, SERVICE_CHAT_IDS, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -97,6 +98,10 @@ async def scan(client):
     if new_items:
         for item in new_items:
             append_inbox(item)
+            record_event(
+                "inbound_message", category="incoming", chat_id=item["chat_id"],
+                chat_name=item["chat"], source="watcher"
+            )
         save_state(state)
         print(f"новых входящих: {len(new_items)}")
     else:

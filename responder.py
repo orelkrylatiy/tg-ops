@@ -39,6 +39,7 @@ from datetime import UTC, datetime, timedelta
 
 from telethon.tl.types import PeerUser, User
 
+from ops_telemetry import record_event
 from tgcommon import HERE, SERVICE_CHAT_IDS, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -278,6 +279,10 @@ async def once():
                         "src": "responder",
                     },
                 )
+                record_event(
+                    "inbound_message", category="incoming", chat_id=d.id,
+                    chat_name=d.name, source="responder"
+                )
             toast(f"💬 {d.name}", fresh[-1].message[:120])
             last[str(d.id)] = iso(fresh[-1].date)
 
@@ -314,6 +319,12 @@ async def once():
                         PeerUser(item["chat_id"])
                     )
                     await client.send_message(ent, item["text"])
+                    record_event(
+                        "message_sent", category="manual_bridge", message_type="reply",
+                        chat_id=item["chat_id"],
+                        chat_name=getattr(ent, "first_name", None) or str(item["chat_id"]),
+                        source="responder"
+                    )
                     append_line(
                         SENTLOG,
                         {
@@ -356,6 +367,10 @@ async def once():
             # Автоответ продолжает входящее сообщение, на которое он был
             # запланирован. Для обычных новых касаний responder не используется.
             await client.send_message(ent, p["text"], reply_to=p.get("seen_msg_id"))
+            record_event(
+                "message_sent", category="auto_reply", message_type="reply",
+                chat_id=p["chat_id"], chat_name=p["name"], source="responder"
+            )
             append_line(
                 SENTLOG,
                 {

@@ -1,4 +1,6 @@
 userbot.session*
+sessions.json
+ops-data/
 phone.env
 __pycache__/
 *.pyc

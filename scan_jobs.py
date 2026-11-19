@@ -29,6 +29,7 @@ from types import SimpleNamespace
 from telethon import functions, types
 
 import leads
+from ops_telemetry import record_event
 from tgcommon import HERE, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -339,6 +340,9 @@ async def cmd_scan(client, args):
                 targets.append(d)
     print(f"Сканирую {len(targets)} каналов/групп с {since:%d.%m.%Y}…\n")
     found = 0
+    posts_scanned = 0
+    channels_scanned = 0
+    leads_added = 0
     rows = []
     stack_re = ML_STACK_RE if args.profile == "ml" else STACK_RE
     for d in targets:
@@ -347,6 +351,8 @@ async def cmd_scan(client, args):
         except Exception as e:
             print(f"!! {d.name!r}: {e}")
             continue
+        posts_scanned += len(msgs)
+        channels_scanned += 1
         for m in msgs:
             text = m.text or ""
             if text:  # лиды собираем из всех постов, не только подходящих под вакансию
@@ -356,7 +362,7 @@ async def cmd_scan(client, args):
                         if getattr(d.entity, "username", None)
                         else ""
                     )
-                    leads.collect_from_text(
+                    leads_added += leads.collect_from_text(
                         text,
                         channel=d.name,
                         channel_id=d.id,
@@ -414,6 +420,12 @@ async def cmd_scan(client, args):
     new = save_findings(args.out_dir, rows, note=f"профиль {args.profile}")
     print(f"Сохранено: {len(new)} новых записей → {args.out_dir}/vacancies.jsonl + digest")
     print(f"Итого подходящих вакансий: {found}")
+    record_event(
+        "scan_completed", scan_type="vacancies", profile=args.profile,
+        channels_scanned=channels_scanned, posts_scanned=posts_scanned,
+        vacancies_found=found, new_vacancies=len(new), leads_found=leads_added,
+        source="scan_jobs.py"
+    )
     if getattr(args, "push", False):
         await push_rows(client, args.out_dir, new)
 
