@@ -201,9 +201,7 @@ def build_summary(period, session_id, snapshot):
         "configured_sessions": len(sessions),
         "available_sessions": sum(item.get("status") == "online" for item in sessions),
         "total_chats": sum(_as_int(item.get("total_chats")) for item in live_sessions),
-        "active_chats_30d": sum(
-            _as_int(item.get("active_chats_30d")) for item in live_sessions
-        ),
+        "active_chats_30d": sum(_as_int(item.get("active_chats_30d")) for item in live_sessions),
         "unread_chats": sum(_as_int(item.get("unread_chats")) for item in live_sessions),
     }
     return {

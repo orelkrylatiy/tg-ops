@@ -73,8 +73,9 @@ class TelemetryTests(unittest.TestCase):
                 "unread_chats": 1,
             },
         ]
-        with patch("admin.read_events", return_value=[]), patch(
-            "admin._pipeline_snapshot", return_value={}
+        with (
+            patch("admin.read_events", return_value=[]),
+            patch("admin._pipeline_snapshot", return_value={}),
         ):
             summary = admin.build_summary("all", "all", {"sessions": sessions})
 
