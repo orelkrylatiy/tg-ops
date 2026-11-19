@@ -10,7 +10,6 @@ from pathlib import Path
 
 from humanizer_framework.telemetry import telemetry_path
 
-
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except AttributeError:
@@ -50,7 +49,7 @@ def report(events):
     totals = [0, 0, 0]
     for event in events:
         values = _usage_totals(event.get("usage"))
-        totals = [left + right for left, right in zip(totals, values)]
+        totals = [left + right for left, right in zip(totals, values, strict=True)]
 
     print(f"Генераций: {len(events)}  успешно: {len(success)}  ошибок: {len(errors)}")
     print(f"Токены: input={totals[0]} output={totals[1]} total={totals[2]}")

@@ -31,7 +31,6 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
 
 import leads as leads_mod
 from tgcommon import HERE, connect_any

@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+DATA_DIR = HERE / "ops-data"
 EVENTS_PATH = DATA_DIR / "events.jsonl"
 _LOCK = threading.Lock()
 _SENSITIVE_FIELDS = {
