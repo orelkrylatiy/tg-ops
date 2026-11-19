@@ -51,9 +51,7 @@ def current_session_id() -> str:
                 continue
             configured_path = item.get("session") or item.get("path")
             if configured_path and normalise(configured_path) == target:
-                return str(
-                    item.get("id") or target.replace("\\\\", "/").rsplit("/", 1)[-1]
-                )
+                return str(item.get("id") or target.replace("\\\\", "/").rsplit("/", 1)[-1])
     except (OSError, json.JSONDecodeError, TypeError, AttributeError):
         pass
 
