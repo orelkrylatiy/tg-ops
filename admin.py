@@ -744,6 +744,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "items": CONTENT_STUDIO.list_topics(query.get("language", ["ru"])[0])
                 })
                 return
+            if parsed.path == "/api/content/source":
+                topic_id = query.get("topic_id", [""])[0]
+                language = query.get("language", ["ru"])[0]
+                if not topic_id:
+                    raise ValueError("Не указана тема.")
+                self._send_json(CONTENT_STUDIO.get_source_info(topic_id, language))
+                return
             if parsed.path == "/api/content/draft":
                 topic_id = query.get("topic_id", [""])[0]
                 language = query.get("language", ["ru"])[0]
@@ -899,6 +906,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     body.get("language", "ru"),
                     body.get("message_id", 0),
                     body.get("confirm") is True,
+                    body.get("session_id", "userbot"),
                 )
                 self._send_json({"published": result})
                 return
