@@ -1,0 +1,30 @@
+[Unit]
+Description=TG Ops Control Center and LangiaFlow Content Studio
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/tg-ops
+Environment=PYTHONUNBUFFERED=1
+Environment=HUMANIZER_PROJECT=tg-ops
+EnvironmentFile=-/etc/tg-ops-admin.env
+ExecStart=/home/ubuntu/tg-ops/.venv/bin/python -u /home/ubuntu/tg-ops/admin.py --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
