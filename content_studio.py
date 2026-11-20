@@ -22,8 +22,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from admin_runtime import ProcessManager, _session_spec, session_io
-from tgcommon import HERE, configured_sessions, connect_any
+from admin_runtime import ProcessManager, session_io
+from tgcommon import HERE, configured_sessions
+from tg import get_client, send_channel_post, _engine_log_lines
 
 WIKI_REPO = "orelkrylatiy/personal-wiki"
 WIKI_BRANCH = os.getenv("PERSONAL_WIKI_BRANCH", "main")
@@ -598,11 +599,13 @@ class ContentStudio:
     async def _scan_async(self, session_id: str, topic_id: str | None = None, language: str = "ru") -> dict[str, Any]:
         self._assert_idle()
         self._ensure_dedicated_session(session_id)
-        spec = _session_spec(session_id)
         with session_io(session_id, timeout=0) as acquired:
             if not acquired:
                 raise ContentStudioError("Telegram-сессия занята другим действием админки.")
-            client = await connect_any(session_path=spec["session_path"], attempts=1)
+            try:
+                client = await get_client(session_id, allow_login=False)
+            except RuntimeError as exc:
+                raise ContentStudioError(str(exc)) from None
             try:
                 if not await client.is_user_authorized():
                     raise ContentStudioError("Telegram-сессия не авторизована.")
@@ -671,11 +674,13 @@ class ContentStudio:
                 raise ContentStudioError("Публикация не одобрена. Сначала проверь и одобри черновик.")
             if draft.get("status") in {"publishing", "unknown"}:
                 raise ContentStudioError("Результат предыдущей отправки неизвестен. Сначала просканируй канал.")
-        spec = _session_spec(session_id)
         with session_io(session_id, timeout=0) as acquired:
             if not acquired:
                 raise ContentStudioError("Telegram-сессия занята другим действием админки.")
-            client = await connect_any(session_path=spec["session_path"], attempts=1)
+            try:
+                client = await get_client(session_id, allow_login=False)
+            except RuntimeError as exc:
+                raise ContentStudioError(str(exc)) from None
             try:
                 if not await client.is_user_authorized():
                     raise ContentStudioError("Telegram-сессия не авторизована.")
@@ -707,13 +712,9 @@ class ContentStudio:
                 stream = io.BytesIO(image)
                 stream.name = f"{topic_id}.png"
                 try:
-                    sent = await client.send_file(
-                        entity,
-                        stream,
-                        caption=draft["text"],
-                        force_document=False,
-                        parse_mode=None,
-                    )
+                    if _engine_log_lines(draft["text"]):
+                        raise ContentStudioError("В подписи обнаружены служебные строки Humanizer.")
+                    sent = await send_channel_post(client, entity, stream, draft["text"])
                 except Exception as exc:
                     with self._lock:
                         state = self._read_state()
