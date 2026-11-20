@@ -2,9 +2,9 @@
 
 ## Автопубликация в Telegram-каналы
 
-Посты для разных каналов публикует общий механизм `channel_post.py`; параметры
-каждого канала хранятся отдельной записью в `channel_posts.json`. Начните с
-`channel_posts.example.json`: задайте `id`, `target`, Telethon `session`,
+Посты для разных каналов публикует общий механизм `channel_publisher.py`; параметры
+каждого канала хранятся отдельной записью в `channel_publisher.json`. Начните с
+`channel_publisher.example.json`: задайте `id`, `target`, Telethon `session`,
 `source_dir`, имена файлов, правила тона и языка, а также `timezone`,
 `window_start`, `window_end` и `daily_limit`. В папке источника должны быть
 подпапки с материалами; в каждой лежит `text_file` и, если задан
@@ -13,10 +13,10 @@
 Проверка генерации без отправки:
 
 ```sh
-python channel_post.py <channel-id> --dry
+python channel_publisher.py <channel-id> --dry
 ```
 
-Планировщик `channel_post_schedule.py` выбирает для каждого дня случайные
+Планировщик `channel_publisher_schedule.py` выбирает для каждого дня случайные
 моменты внутри окна и публикует материал, когда наступит один из них. На VPS
 cron вызывает планировщик периодически; сам cron запускается systemd и
 восстанавливается после перезагрузки сервера. Блокировка `flock` не даёт
