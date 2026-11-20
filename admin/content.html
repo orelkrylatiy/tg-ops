@@ -53,6 +53,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:var(--ac
         <div><div class="panel-title" id="selectedTitle">Выбери тему</div><div class="panel-sub" id="selectedMeta">Посты создаются по одному, на основе исходных статей.</div></div>
         <div class="row">
           <select class="select" id="language"><option value="ru">Русский</option><option value="en">English</option></select>
+          <select class="select" id="sessionSelect" aria-label="Telegram session"><option value="">Нет сессии</option></select>
           <button class="button" id="scan">Проверить канал</button>
         </div>
       </div>
@@ -141,7 +142,12 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:var(--ac
   function renderStatus(){
     const s=state.status||{};
     const sessions=(s.sessions||[]).filter(x=>x.enabled&&x.exists);
-    const session=sessions[0];
+    const session=sessions.find(x=>x.id===s.default_session)||sessions[0];
+    const previousSession=$("sessionSelect").value;
+    $("sessionSelect").innerHTML=sessions.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")||'<option value="">Нет сессии</option>';
+    if(sessions.some(x=>x.id===previousSession)) $("sessionSelect").value=previousSession;
+    else if(session) $("sessionSelect").value=session.id;
+    $("sessionSelect").disabled=!sessions.length;
     $("statusGrid").innerHTML=[
       statusCard("Personal Wiki",!!s.wiki?.configured,s.wiki?.configured?"Подключение готово":"Нужен token",s.wiki?.configured?"Приватный репозиторий · read-only":"PERSONAL_WIKI_TOKEN не настроен"),
       statusCard("Humanizer Framework",!!s.humanizer?.available,s.humanizer?.available?"Доступен":"Не найден",s.humanizer?.provider||""),
@@ -192,8 +198,13 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:var(--ac
     $("cardPreview").hidden=false;
     $("cardPreview").src="/api/content/card?topic_id="+query(topicId);
     $("cardEmpty").hidden=true;
-    $("sourceInfo").textContent="Импортированный материал · проверка человеком не подтверждена.";
     $("sourceLink").hidden=true;
+    try{
+      const source=await api("/api/content/source?topic_id="+query(topicId)+"&language="+query($("language").value));
+      $("selectedTitle").textContent=source.title||state.selected.title;
+      $("sourceInfo").textContent="Исходник: "+(source.source_reviewed?"проверен":"не проверен человеком")+" · commit "+(source.source_commit||"не указан");
+      $("sourceLink").href=source.source_url;$("sourceLink").hidden=false;
+    }catch(error){$("sourceInfo").textContent=error.message;}
     try{
       const result=await api("/api/content/draft?topic_id="+query(topicId)+"&language="+query($("language").value));
       state.draft=result.draft;
@@ -254,13 +265,13 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:var(--ac
   async function publish(){
     if(!state.selected||!state.draft)return;
     if(!$("publishConfirm").checked){toast("Подтверди отправку публикации.",true);return;}
-    const session=(state.status?.sessions||[]).find(x=>x.enabled&&x.exists);
-    if(!session){toast("Нет активной Telegram-сессии.",true);return;}
+    const sessionId=$("sessionSelect").value;
+    if(!sessionId){toast("Выбери активную Telegram-сессию.",true);return;}
     if(!confirm("Опубликовать один пост в канале LangiaFlow?"))return;
     setBusy(true);
     try{
       const result=await post("/api/content/publish",{
-        topic_id:state.selected.id,language:$("language").value,session_id:session.id,
+        topic_id:state.selected.id,language:$("language").value,session_id:sessionId,
         confirm:true,allow_possible_duplicate:$("duplicateConfirm").checked
       },90000);
       toast("Пост опубликован. Telegram message ID: "+result.published.message_id);
@@ -270,17 +281,27 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:var(--ac
     finally{setBusy(false);renderStatus();renderDraft();}
   }
   async function scan(){
-    const session=(state.status?.sessions||[]).find(x=>x.enabled&&x.exists);
-    if(!session){toast("Нет активной Telegram-сессии.",true);return;}
+    const sessionId=$("sessionSelect").value;
+    if(!sessionId){toast("Выбери активную Telegram-сессию.",true);return;}
     setBusy(true);
     try{
-      const result=await api("/api/content/history?session_id="+query(session.id),{timeout:90000});
+      const result=await api("/api/content/history?session_id="+query(sessionId),{timeout:90000});
       state.history=result;
       const matches=(result.topic_matches||[]).filter(x=>x.topic_id===state.selected?.id);
       $("historyMatches").innerHTML=`<strong>${esc(result.channel||"Telegram")}</strong> · публикация: ${result.can_post?"разрешена":"нет прав на публикацию"} · ${(result.history||[]).length} сообщений просмотрено`+
         (matches.length?`<div class="issue" style="margin-top:8px">Найдено возможное совпадение: ${matches.map(x=>x.matches.map(m=>"#"+m.message_id+" · "+m.match).join(", ")).join("; ")}. Проверь историю перед отправкой.</div>`:"<div style='margin-top:7px'>Совпадений по выбранной теме не найдено.</div>");
       $("historyList").innerHTML=(result.history||[]).slice(0,15).map(item=>`
-        <div class="history-item"><div class="history-top"><span>#${item.message_id}</span><span>${esc(item.date||"")}</span></div><div class="history-text">${esc(item.text||"Медиа без подписи")}</div></div>`).join("")||'<div class="empty">История пока недоступна.</div>';
+        <div class="history-item"><div class="history-top"><span>#${item.message_id}</span><span>${esc(item.date||"")}</span></div><div class="history-text">${esc(item.text||"Медиа без подписи")}</div><div style="margin-top:7px"><button class="button small" data-mark-message="${item.message_id}">Отметить как уже опубликованное</button></div></div>`).join("")||'<div class="empty">История пока недоступна.</div>';
+      $("historyList").querySelectorAll("[data-mark-message]").forEach(button=>button.addEventListener("click",async()=>{
+        if(!state.selected||!confirm("Отметить выбранную тему опубликованной по сообщению #"+button.dataset.markMessage+"?"))return;
+        try{
+          await post("/api/content/mark-published",{
+            topic_id:state.selected.id,language:$("language").value,
+            message_id:Number(button.dataset.markMessage),session_id:sessionId,confirm:true
+          });
+          toast("Тема отмечена как опубликованная.");await loadTopics();
+        }catch(error){toast(error.message,true);}
+      }));
       toast("История канала проверена.");
     }catch(error){toast(error.message,true);}
     finally{setBusy(false);renderStatus();renderDraft();}
