@@ -15,12 +15,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/checkout@v4
+        with:
+          repository: orelkrylatiy/humanizer-framework
+          path: humanizer-framework
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - run: python -m pip install --upgrade pip
       - run: pip install ruff telethon
+      - run: pip install -e ./humanizer-framework
 
       - name: Ruff lint
         run: ruff check .
@@ -47,6 +53,20 @@ jobs:
           Path("/tmp/tg-ops-admin.js").write_text(match.group(1), encoding="utf-8")
           PY
           node --check /tmp/tg-ops-admin.js
+
+      - name: Content Studio UI JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          html = Path("admin/content.html").read_text(encoding="utf-8")
+          match = re.search(r"<script>(.*?)</script>", html, re.DOTALL)
+          if not match:
+              raise SystemExit("Content Studio UI script block not found")
+          Path("/tmp/tg-ops-content-studio.js").write_text(match.group(1), encoding="utf-8")
+          PY
+          node --check /tmp/tg-ops-content-studio.js
 
       - name: Syntax check all scripts
         run: |

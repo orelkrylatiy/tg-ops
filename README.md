@@ -138,6 +138,20 @@ python admin.py
   операции из allow-list.
 - **Логи** — вывод процессов, автопилота и журнал телеметрии.
 
+### LangiaFlow Content Studio
+
+Отдельная страница `/content` использует темы и карточки из приватного
+Personal Wiki (`Generated Content/LangiaFlow`), а тексты готовит через
+Humanizer Framework в режиме `channel_post`. Одна тема — один черновик —
+одна ручная публикация. Источники архива помечены `reviewed: false`, поэтому
+проверка источника и текста обязательна. Повторные темы сверяются с историей
+канала; отправка идёт через общий sender в `tg.py`.
+
+Настройка GitHub read-only token, отдельной Telegram-сессии, прав канала и
+systemd unit описана в [docs/CONTENT_STUDIO.md](docs/CONTENT_STUDIO.md).
+Для сервера устанавливается отдельный `tg-ops-control-center.service` на
+`127.0.0.1:8765`; существующий HH Ops admin на порту 8001 не заменяется.
+
 ### Безопасность и ограничения
 
 - Админка слушает только localhost. Для удалённого доступа используй SSH tunnel;

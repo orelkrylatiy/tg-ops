@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Content Studio · TG Ops</title>
+<style>
+:root{color-scheme:light;--bg:#f6f8f6;--surface:#fff;--soft:#f0f4f1;--line:#e5ebe6;--line-strong:#d8e1da;--text:#24332b;--muted:#7b8980;--accent:#23865b;--accent-soft:#e9f4ed;--blue:#5479b7;--amber:#a56b16;--amber-soft:#fbf4e8;--red:#b94d4d;--shadow:0 8px 30px rgba(30,50,39,.045);--radius:16px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.shell{max-width:1500px;margin:0 auto;padding:26px 30px 46px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:22px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:13px}.mark{width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:var(--accent);color:white;font-weight:800;font-size:12px}.eyebrow{color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.brand h1{margin:2px 0 0;font-size:20px;letter-spacing:-.04em}.top-actions{display:flex;align-items:center;gap:9px}.pill{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--line);border-radius:99px;background:var(--surface);font-size:10px;color:var(--muted)}.dot{width:7px;height:7px;border-radius:50%;background:#c4cec7}.dot.good{background:var(--accent)}.dot.warn{background:#d59a3b}.button{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 13px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);color:#405047;font-size:11px;font-weight:700;transition:.15s}.button:hover{border-color:#b8c9be;background:#fbfdfb}.button.primary{background:var(--accent);border-color:var(--accent);color:white}.button.primary:hover{background:#1d744e}.button.danger{background:#fff5f5;border-color:#efd9d9;color:var(--red)}.button:disabled{opacity:.45;cursor:not-allowed}.button.small{padding:6px 9px;font-size:10px}
+.status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:17px 0}.status-card{padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);min-width:0}.status-label{font-size:10px;color:var(--muted);font-weight:750;letter-spacing:.04em}.status-value{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:12px;font-weight:750;min-width:0}.status-note{margin-top:3px;color:var(--muted);font-size:10px;overflow-wrap:anywhere}
+.notice{padding:12px 14px;border:1px solid #eadcc2;border-radius:12px;background:var(--amber-soft);color:#78531d;font-size:11px;margin-bottom:16px}.notice strong{font-weight:800}.layout{display:grid;grid-template-columns:330px minmax(0,1fr);gap:15px;align-items:start}.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);min-width:0}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 17px 12px;border-bottom:1px solid var(--line)}.panel-title{font-size:13px;font-weight:780;letter-spacing:-.02em}.panel-sub{font-size:10px;color:var(--muted);margin-top:3px}.search{width:100%;padding:9px 11px;border:1px solid var(--line-strong);border-radius:9px;background:#fbfcfb;color:var(--text);outline:none;font-size:11px}.search:focus,.field:focus,.select:focus,.textarea:focus{border-color:#8ab99e;box-shadow:0 0 0 3px rgba(35,134,91,.08);outline:none}.topic-tools{padding:12px 14px;border-bottom:1px solid var(--line)}.topic-list{max-height:calc(100vh - 330px);overflow:auto;padding:7px}.topic{display:flex;align-items:flex-start;gap:10px;width:100%;padding:10px;border:1px solid transparent;border-radius:11px;background:transparent;text-align:left;color:var(--text)}.topic:hover{background:#f8faf8}.topic.active{background:var(--accent-soft);border-color:#d5e8dc}.topic-num{width:25px;height:25px;display:grid;place-items:center;flex:0 0 25px;border-radius:8px;background:var(--soft);color:#6d7c72;font-size:9px;font-weight:800}.topic.active .topic-num{background:white;color:var(--accent)}.topic-copy{min-width:0;flex:1}.topic-title{font-size:11px;font-weight:700;line-height:1.4}.topic-meta{display:flex;align-items:center;gap:6px;margin-top:5px;color:var(--muted);font-size:9px}.tag{display:inline-flex;align-items:center;padding:2px 6px;border-radius:99px;background:var(--soft);color:#68766e;font-size:9px;font-weight:750}.tag.published{background:#e9f4ed;color:#24734f}.tag.draft{background:#edf2fa;color:#5576a9}.tag.approved{background:#f0ecfa;color:#7156a3}.tag.warn{background:#fbf4e8;color:#94631c}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 265px;gap:14px;padding:15px}.main-col{min-width:0}.section-card{padding:15px;border:1px solid var(--line);border-radius:13px;margin-bottom:12px}.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.section-title{font-size:12px;font-weight:800}.section-desc{font-size:10px;color:var(--muted);margin-top:3px}.field-label{display:block;margin:11px 0 5px;color:#68766e;font-size:10px;font-weight:750}.field,.select,.textarea{width:100%;padding:9px 11px;border:1px solid var(--line-strong);border-radius:9px;background:#fbfcfb;color:var(--text);font-size:11px}.textarea{min-height:74px;resize:vertical;line-height:1.5}.controls{display:grid;grid-template-columns:160px minmax(0,1fr);gap:12px}.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.draft-box{white-space:pre-wrap;overflow-wrap:anywhere;padding:15px;border-radius:11px;background:#f7faf7;border:1px solid var(--line);font-size:12px;line-height:1.75;min-height:190px}.draft-placeholder{color:#9aa59e;font-size:11px}.draft-meta{display:flex;align-items:center;gap:9px;flex-wrap:wrap;color:var(--muted);font-size:10px;margin-top:9px}.check{display:flex;align-items:flex-start;gap:8px;margin:12px 0;color:#66746b;font-size:10px;line-height:1.45}.check input{margin:2px 0 0;accent-color:var(--accent)}.side-card{border:1px solid var(--line);border-radius:13px;padding:12px;margin-bottom:12px}.card-preview{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:9px;background:var(--soft);display:block}.side-label{font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px}.side-text{font-size:10px;color:#6f7c73;line-height:1.55}.source-link{display:block;margin-top:8px;font-size:10px;overflow-wrap:anywhere}.issues{display:grid;gap:6px;margin-top:10px}.issue{padding:7px 9px;border-radius:8px;background:var(--amber-soft);color:#79561f;font-size:10px}.history{display:grid;gap:7px;margin-top:10px}.history-item{padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:#fcfdfc}.history-top{display:flex;justify-content:space-between;gap:8px;font-size:10px;font-weight:750}.history-text{margin-top:4px;color:var(--muted);font-size:10px;white-space:pre-wrap;overflow-wrap:anywhere}.empty{padding:22px 12px;text-align:center;color:var(--muted);font-size:11px}.toast{position:fixed;right:22px;bottom:22px;max-width:420px;padding:11px 14px;border-radius:11px;background:#26372d;color:white;font-size:11px;box-shadow:0 10px 30px rgba(0,0,0,.15);opacity:0;transform:translateY(8px);pointer-events:none;transition:.2s;z-index:10}.toast.show{opacity:1;transform:translateY(0)}.toast.error{background:#8d3939}.back{color:var(--muted);font-size:10px}
+@media(max-width:1100px){.layout{grid-template-columns:280px minmax(0,1fr)}.workspace{grid-template-columns:minmax(0,1fr)}.side-column{display:grid;grid-template-columns:1fr 1fr;gap:10px}.side-card{margin:0}.card-preview{max-width:220px;margin:auto}.status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.shell{padding:16px 12px 30px}.topbar{align-items:flex-start;flex-direction:column}.top-actions{width:100%;justify-content:space-between}.layout{grid-template-columns:1fr}.topic-list{max-height:320px}.workspace{padding:10px}.controls{grid-template-columns:1fr}.side-column{grid-template-columns:1fr}.card-preview{max-width:190px}.status-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark">TG</div>
+      <div><div class="eyebrow">TG Ops / Publishing</div><h1>Content Studio</h1></div>
+    </div>
+    <div class="top-actions">
+      <span class="pill"><span class="dot good"></span>One post at a time</span>
+      <a class="back" href="/">← Назад в TG Ops</a>
+      <button class="button" id="refresh">↻ Обновить</button>
+    </div>
+  </header>
+
+  <section class="status-grid" id="statusGrid">
+    <div class="status-card"><div class="status-label">Personal Wiki</div><div class="status-value">Проверяем…</div></div>
+    <div class="status-card"><div class="status-label">Humanizer Framework</div><div class="status-value">Проверяем…</div></div>
+    <div class="status-card"><div class="status-label">Telegram channel</div><div class="status-value">Проверяем…</div></div>
+    <div class="status-card"><div class="status-label">Telegram session</div><div class="status-value">Проверяем…</div></div>
+  </section>
+
+  <div class="notice"><strong>Редакторская проверка обязательна.</strong> Материалы Personal Wiki помечены как AI-assisted и не проверенные человеком. Сначала проверь источник и сгенерированный текст. Для публикаций используй отдельную Telegram-сессию <code>langiaflow</code>, не HR-responder. Отправка всегда выполняется вручную, автоматическая публикация выключена.</div>
+
+  <main class="layout">
+    <aside class="panel">
+      <div class="panel-head"><div><div class="panel-title">Темы Personal Wiki</div><div class="panel-sub" id="topicCount">Загружаем каталог…</div></div><span class="tag">40 topics</span></div>
+      <div class="topic-tools"><input class="search" id="topicSearch" placeholder="Поиск по темам…"></div>
+      <div class="topic-list" id="topicList"><div class="empty">Подключаем Personal Wiki…</div></div>
+    </aside>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div><div class="panel-title" id="selectedTitle">Выбери тему</div><div class="panel-sub" id="selectedMeta">Посты создаются по одному, на основе исходных статей.</div></div>
+        <div class="row">
+          <select class="select" id="language"><option value="ru">Русский</option><option value="en">English</option></select>
+          <select class="select" id="sessionSelect" aria-label="Telegram session"><option value="">Нет сессии</option></select>
+          <button class="button" id="scan">Проверить канал</button>
+        </div>
+      </div>
+      <div class="workspace">
+        <div class="main-col">
+          <div class="section-card">
+            <div class="section-head"><div><div class="section-title">1. Подготовка публикации</div><div class="section-desc">Humanizer Framework · channel_post · LangiaFlow</div></div><span class="tag" id="draftStatus">Нет черновика</span></div>
+            <div class="controls">
+              <div><label class="field-label" for="format">Формат</label><select class="select" id="format"><option value="practical">Практический совет</option><option value="mini_lesson">Мини-урок</option><option value="myth">Разбор мифа</option><option value="checklist">Чек-лист</option></select></div>
+              <div><label class="field-label" for="angle">Дополнительный акцент (необязательно)</label><input class="field" id="angle" maxlength="500" placeholder="Например: сделай акцент на разговорной практике"></div>
+            </div>
+            <div class="row" style="margin-top:13px"><button class="button primary" id="generate" disabled>✦ Сгенерировать пост</button><span class="side-text" id="generateHint">Выбери тему и проверь подключение.</span></div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-head"><div><div class="section-title">2. Предпросмотр текста</div><div class="section-desc">Текст проходит проверки Humanizer Framework. Здесь можно оценить результат до отправки.</div></div><button class="button small" id="copy" disabled>Копировать</button></div>
+            <div class="draft-box" id="draftText"><span class="draft-placeholder">Здесь появится готовый Telegram-пост.</span></div>
+            <div class="draft-meta" id="draftMeta"></div>
+            <div class="issues" id="issues"></div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-head"><div><div class="section-title">3. Проверка и публикация</div><div class="section-desc">Два отдельных подтверждения. Повторная публикация той же темы блокируется.</div></div></div>
+            <label class="check"><input type="checkbox" id="reviewConfirm"><span>Я проверил исходный материал Personal Wiki и готовый текст, включая факты, ссылки и формулировки.</span></label>
+            <div class="row"><button class="button" id="approve" disabled>Одобрить черновик</button><span class="tag" id="approvalStatus">Не одобрен</span></div>
+            <label class="check"><input type="checkbox" id="publishConfirm"><span>Я подтверждаю отправку одной публикации в канал LangiaFlow сейчас.</span></label>
+            <label class="check"><input type="checkbox" id="duplicateConfirm"><span>Я проверил возможное совпадение с предыдущими постами и разрешаю публикацию похожей темы, если это действительно другой материал.</span></label>
+            <div class="row"><button class="button primary" id="publish" disabled>Опубликовать один пост ↗</button><span class="side-text" id="publishHint">Сначала сгенерируй и одобри текст.</span></div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-head"><div><div class="section-title">История канала</div><div class="section-desc">Последние публикации и найденные совпадения.</div></div></div>
+            <div id="historyMatches" class="side-text">Нажми «Проверить канал», чтобы сверить последние сообщения и найти возможные дубли.</div>
+            <div class="history" id="historyList"></div>
+          </div>
+        </div>
+
+        <aside class="side-column">
+          <div class="side-card">
+            <div class="side-label">Telegram card · 4:5</div>
+            <img id="cardPreview" class="card-preview" alt="Карточка темы LangiaFlow" hidden>
+            <div class="empty" id="cardEmpty">Выбери тему, чтобы увидеть готовую карточку из Personal Wiki.</div>
+          </div>
+          <div class="side-card">
+            <div class="side-label">Источник</div>
+            <div class="side-text" id="sourceInfo">Статья будет загружена из Personal Wiki.</div>
+            <a class="source-link" id="sourceLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Открыть статью LangiaFlow ↗</a>
+            <div class="side-text" style="margin-top:10px">Исходный архив имеет статус <strong>reviewed: false</strong>. Проверка источника человеком обязательна.</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const state = { status:null, topics:[], selected:null, draft:null, history:null, busy:false };
+  const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const query = (value) => encodeURIComponent(value || "");
+  const api = async (path, options={}) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.timeout || 45000);
+    try {
+      const response = await fetch(path, {
+        ...options, signal:controller.signal,
+        headers:{"Content-Type":"application/json",...(options.headers||{})}
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "HTTP " + response.status);
+      return data;
+    } finally { clearTimeout(timer); }
+  };
+  const toast = (message, error=false) => {
+    const node=$("toast"); node.textContent=message; node.className="toast show"+(error?" error":"");
+    clearTimeout(toast.timer); toast.timer=setTimeout(()=>node.className="toast",3800);
+  };
+  const post = (path, body, timeout=45000) => api(path,{method:"POST",body:JSON.stringify(body),timeout});
+  const setBusy = (value) => {
+    state.busy=value;
+    ["generate","approve","publish","scan","refresh"].forEach(id => { $(id).disabled=value || $(id).dataset.locked==="1"; });
+  };
+  const statusCard = (label, good, value, note) => `
+    <div class="status-card"><div class="status-label">${label}</div><div class="status-value"><span class="dot ${good?"good":"warn"}"></span>${esc(value)}</div><div class="status-note">${esc(note||"")}</div></div>`;
+  function renderStatus(){
+    const s=state.status||{};
+    const sessions=(s.sessions||[]).filter(x=>x.enabled&&x.exists);
+    const session=sessions.find(x=>x.id===s.default_session)||null;
+    const previousSession=$("sessionSelect").value;
+    $("sessionSelect").innerHTML=sessions.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")||'<option value="">Нет сессии</option>';
+    if(sessions.some(x=>x.id===previousSession)) $("sessionSelect").value=previousSession;
+    else if(session) $("sessionSelect").value=session.id;
+    $("sessionSelect").disabled=!sessions.length;
+    $("statusGrid").innerHTML=[
+      statusCard("Personal Wiki",!!s.wiki?.configured,s.wiki?.configured?"Подключение готово":"Нужен token",s.wiki?.configured?"Приватный репозиторий · read-only":"PERSONAL_WIKI_TOKEN не настроен"),
+      statusCard("Humanizer Framework",!!s.humanizer?.available,s.humanizer?.available?"Доступен":"Не найден",s.humanizer?.provider||""),
+      statusCard("Telegram channel",!!s.channel?.configured,s.channel?.configured?"Цель настроена":"Не настроен",s.channel?.private_invite?"Приватный канал · требуется членство":"Канал LangiaFlow"),
+      statusCard("Telegram session",!!session,session?.name||"Нет сессии",session?"Будет использоваться выбранная сессия":"Проверь sessions.json и файл .session")
+    ].join("");
+    $("generateHint").textContent=s.wiki?.configured&&s.humanizer?.available?"Источник и генератор настроены.":"Нужны PERSONAL_WIKI_TOKEN и установленный Humanizer Framework.";
+    $("generate").dataset.locked=s.wiki?.configured&&s.humanizer?.available?"0":"1";
+    $("generate").disabled=state.busy||$("generate").dataset.locked==="1";
+    $("scan").dataset.locked=session?"0":"1";
+    $("scan").disabled=state.busy||$("scan").dataset.locked==="1";
+    $("publishHint").textContent=session?"Публикация доступна после проверки прав Telegram-сессии.":"Нет активной Telegram-сессии.";
+  }
+  function renderTopics(){
+    const needle=$("topicSearch").value.trim().toLocaleLowerCase();
+    const items=state.topics.filter(x=>!needle||x.title.toLocaleLowerCase().includes(needle)||x.id.includes(needle));
+    $("topicCount").textContent=`${state.topics.length} тем · ${items.length} показано`;
+    $("topicList").innerHTML=items.map((item,index)=>`
+      <button class="topic ${state.selected?.id===item.id?"active":""}" data-topic="${esc(item.id)}">
+        <span class="topic-num">${esc(item.id.slice(0,2))}</span>
+        <span class="topic-copy"><span class="topic-title">${esc(item.title)}</span>
+          <span class="topic-meta"><span class="tag ${esc(item.status)}">${item.status==="published"?"Опубликовано":item.status==="approved"?"Одобрено":item.status==="draft"?"Черновик":"Не начато"}</span><span>${esc(item.id)}</span></span>
+        </span>
+      </button>`).join("")||'<div class="empty">Темы не найдены.</div>';
+    $("topicList").querySelectorAll("[data-topic]").forEach(button=>button.addEventListener("click",()=>selectTopic(button.dataset.topic)));
+  }
+  function renderDraft(){
+    const d=state.draft;
+    $("draftText").textContent=d?.text||"Здесь появится готовый Telegram-пост.";
+    $("draftText").classList.toggle("draft-placeholder",!d);
+    $("draftStatus").textContent=d?(d.status==="published"?"Опубликовано":d.approved?"Одобрено":"Черновик готов"):"Нет черновика";
+    $("draftMeta").innerHTML=d?`<span>${esc(d.provider||"Humanizer Framework")}</span><span>·</span><span>${String(d.text||"").length} символов</span><span>·</span><span>${esc(d.generated_at||"")}</span>`:"";
+    $("issues").innerHTML=(d?.issues||[]).filter(x=>!x.hard).map(x=>`<div class="issue">${esc(x.code)} · ${esc(x.message)}</div>`).join("");
+    $("copy").disabled=!d;
+    $("approve").disabled=!d||d.approved||d.status==="published"||state.busy;
+    $("approvalStatus").textContent=d?.approved?"Одобрен":"Не одобрен";
+    $("publish").disabled=!d||!d.approved||d.status==="published"||state.busy;
+    $("publishConfirm").checked=false;
+    $("reviewConfirm").checked=!!d?.approved;
+    $("publishHint").textContent=d?.approved?"Подтверди отправку одной публикации.":"Сначала сгенерируй и одобри текст.";
+  }
+  async function selectTopic(topicId){
+    state.selected=state.topics.find(x=>x.id===topicId)||null;
+    state.draft=null; renderTopics();
+    if(!state.selected)return;
+    $("selectedTitle").textContent=state.selected.title;
+    $("selectedMeta").textContent=`${state.selected.id} · ${$("language").value.toUpperCase()} · Personal Wiki`;
+    $("cardPreview").hidden=false;
+    $("cardPreview").src="/api/content/card?topic_id="+query(topicId);
+    $("cardEmpty").hidden=true;
+    $("sourceLink").hidden=true;
+    try{
+      const source=await api("/api/content/source?topic_id="+query(topicId)+"&language="+query($("language").value));
+      $("selectedTitle").textContent=source.title||state.selected.title;
+      $("sourceInfo").textContent="Исходник: "+(source.source_reviewed?"проверен":"не проверен человеком")+" · commit "+(source.source_commit||"не указан");
+      $("sourceLink").href=source.source_url;$("sourceLink").hidden=false;
+    }catch(error){$("sourceInfo").textContent=error.message;}
+    try{
+      const result=await api("/api/content/draft?topic_id="+query(topicId)+"&language="+query($("language").value));
+      state.draft=result.draft;
+      if(state.draft){
+        $("sourceInfo").textContent="Исходник: "+(state.draft.source_reviewed?"проверен":"не проверен человеком")+" · commit "+(state.draft.source_commit||"не указан");
+        $("sourceLink").href=state.draft.source_url; $("sourceLink").hidden=false;
+      }
+      renderDraft();
+    }catch(error){toast(error.message,true);}
+    renderDraft();
+  }
+  async function loadTopics(){
+    const result=await api("/api/content/topics?language="+query($("language").value));
+    state.topics=result.items||[];
+    renderTopics();
+    if(state.selected){await selectTopic(state.selected.id);}
+    else if(state.topics.length){await selectTopic(state.topics[0].id);}
+  }
+  async function loadStatus(){
+    state.status=await api("/api/content/status");
+    renderStatus();
+  }
+  async function refreshAll(){
+    setBusy(true);
+    try{await loadStatus();await loadTopics();toast("Данные обновлены.");}
+    catch(error){toast(error.message,true);}
+    finally{setBusy(false);renderStatus();renderDraft();}
+  }
+  async function generate(){
+    if(!state.selected)return;
+    setBusy(true);
+    try{
+      const result=await post("/api/content/generate",{
+        topic_id:state.selected.id,language:$("language").value,
+        angle:$("angle").value,format:$("format").value
+      },120000);
+      state.draft=result.draft;
+      $("sourceInfo").textContent="Исходник: "+(state.draft.source_reviewed?"проверен":"не проверен человеком")+" · commit "+(state.draft.source_commit||"не указан");
+      $("sourceLink").href=state.draft.source_url;$("sourceLink").hidden=false;
+      renderDraft();toast("Черновик создан. Проверь текст и источник.");
+      await loadTopics();
+    }catch(error){toast(error.message,true);}
+    finally{setBusy(false);renderStatus();renderDraft();}
+  }
+  async function approve(){
+    if(!state.selected||!state.draft)return;
+    if(!$("reviewConfirm").checked){toast("Подтверди проверку исходника и текста.",true);return;}
+    setBusy(true);
+    try{
+      const result=await post("/api/content/approve",{
+        topic_id:state.selected.id,language:$("language").value,review_confirmed:true
+      });
+      state.draft=result.draft;renderDraft();toast("Черновик одобрен.");
+      await loadTopics();
+    }catch(error){toast(error.message,true);}
+    finally{setBusy(false);renderStatus();renderDraft();}
+  }
+  async function publish(){
+    if(!state.selected||!state.draft)return;
+    if(!$("publishConfirm").checked){toast("Подтверди отправку публикации.",true);return;}
+    const sessionId=$("sessionSelect").value;
+    if(!sessionId){toast("Выбери активную Telegram-сессию.",true);return;}
+    if(!confirm("Опубликовать один пост в канале LangiaFlow?"))return;
+    setBusy(true);
+    try{
+      const result=await post("/api/content/publish",{
+        topic_id:state.selected.id,language:$("language").value,session_id:sessionId,
+        confirm:true,allow_possible_duplicate:$("duplicateConfirm").checked
+      },90000);
+      toast("Пост опубликован. Telegram message ID: "+result.published.message_id);
+      state.draft={...state.draft,status:"published",approved:false,message_id:result.published.message_id};
+      renderDraft();await loadTopics();
+    }catch(error){toast(error.message,true);}
+    finally{setBusy(false);renderStatus();renderDraft();}
+  }
+  async function scan(){
+    const sessionId=$("sessionSelect").value;
+    if(!sessionId){toast("Выбери активную Telegram-сессию.",true);return;}
+    setBusy(true);
+    try{
+      const result=await api("/api/content/history?session_id="+query(sessionId),{timeout:90000});
+      state.history=result;
+      const matches=(result.topic_matches||[]).filter(x=>x.topic_id===state.selected?.id);
+      $("historyMatches").innerHTML=`<strong>${esc(result.channel||"Telegram")}</strong> · публикация: ${result.can_post?"разрешена":"нет прав на публикацию"} · ${(result.history||[]).length} сообщений просмотрено`+
+        (matches.length?`<div class="issue" style="margin-top:8px">Найдено возможное совпадение: ${matches.map(x=>x.matches.map(m=>"#"+m.message_id+" · "+m.match).join(", ")).join("; ")}. Проверь историю перед отправкой.</div>`:"<div style='margin-top:7px'>Совпадений по выбранной теме не найдено.</div>");
+      $("historyList").innerHTML=(result.history||[]).slice(0,15).map(item=>`
+        <div class="history-item"><div class="history-top"><span>#${item.message_id}</span><span>${esc(item.date||"")}</span></div><div class="history-text">${esc(item.text||"Медиа без подписи")}</div><div style="margin-top:7px"><button class="button small" data-mark-message="${item.message_id}">Отметить как уже опубликованное</button></div></div>`).join("")||'<div class="empty">История пока недоступна.</div>';
+      $("historyList").querySelectorAll("[data-mark-message]").forEach(button=>button.addEventListener("click",async()=>{
+        if(!state.selected||!confirm("Отметить выбранную тему опубликованной по сообщению #"+button.dataset.markMessage+"?"))return;
+        try{
+          await post("/api/content/mark-published",{
+            topic_id:state.selected.id,language:$("language").value,
+            message_id:Number(button.dataset.markMessage),session_id:sessionId,confirm:true
+          });
+          toast("Тема отмечена как опубликованная.");await loadTopics();
+        }catch(error){toast(error.message,true);}
+      }));
+      toast("История канала проверена.");
+    }catch(error){toast(error.message,true);}
+    finally{setBusy(false);renderStatus();renderDraft();}
+  }
+  $("refresh").addEventListener("click",refreshAll);
+  $("generate").addEventListener("click",generate);
+  $("approve").addEventListener("click",approve);
+  $("publish").addEventListener("click",publish);
+  $("scan").addEventListener("click",scan);
+  $("topicSearch").addEventListener("input",renderTopics);
+  $("language").addEventListener("change",async()=>{state.draft=null;await loadTopics();renderDraft();});
+  $("copy").addEventListener("click",async()=>{if(state.draft)try{await navigator.clipboard.writeText(state.draft.text);toast("Текст скопирован.");}catch(_){toast("Не удалось скопировать текст.",true);}});
+  refreshAll();
+})();
+</script>
+</body>
+</html>
