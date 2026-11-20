@@ -129,6 +129,7 @@ class ContentStudioTests(unittest.TestCase):
 
     def test_generation_uses_humanizer_and_requires_explicit_approval(self):
         from humanizer_framework.providers.mock import MockProvider
+
         import humanize
 
         with tempfile.TemporaryDirectory() as directory:
