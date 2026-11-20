@@ -479,7 +479,11 @@
     );
     const safeLink = (value) => {
       const link = String(value || "");
-      return /^https:\/\/t\.me\/[A-Za-z0-9_+/?=-]+$/i.test(link) || /^tg:\/\/user\?id=\d+$/.test(link) ? link : "";
+      try {
+        const parsed = new URL(link);
+        if (parsed.protocol === "https:" && parsed.hostname) return link;
+      } catch (_) {}
+      return /^tg:\/\/user\?id=\d+$/.test(link) ? link : "";
     };
     const dateTime = (value, includeYear = false) => {
       if (!value) return "—";

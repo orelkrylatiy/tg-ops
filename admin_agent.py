@@ -82,7 +82,9 @@ _SEND_RE = re.compile(
     re.IGNORECASE,
 )
 _START_RE = re.compile(r"(?<!\w)(?:запусти(?:ть)?|старт|включи(?:ть)?|start)(?!\w)", re.I)
-_STOP_RE = re.compile(r"(?<!\w)(?:останови(?:ть)?|выключи(?:ть)?|стоп|отмени(?:ть)?|stop|cancel)(?!\w)", re.I)
+_STOP_RE = re.compile(
+    r"(?<!\w)(?:останови(?:ть)?|выключи(?:ть)?|стоп|отмени(?:ть)?|stop|cancel)(?!\w)", re.I
+)
 _ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,80}$")
 
 
@@ -157,7 +159,8 @@ def _load_history(conversation_id):
     if not isinstance(data, list):
         return []
     return [
-        item for item in data[-MAX_HISTORY:]
+        item
+        for item in data[-MAX_HISTORY:]
         if isinstance(item, dict) and item.get("role") in {"user", "assistant"}
     ]
 
@@ -278,9 +281,7 @@ async def _is_manual_chat(client, entity):
     try:
         from folders import AUTOMATION_FOLDER_TITLES, get_filters
 
-        manual_peers = _manual_folder_peer_ids(
-            await get_filters(client), AUTOMATION_FOLDER_TITLES
-        )
+        manual_peers = _manual_folder_peer_ids(await get_filters(client), AUTOMATION_FOLDER_TITLES)
         if getattr(entity, "id", None) in manual_peers:
             return True
     except Exception as exc:
@@ -312,7 +313,9 @@ async def _telegram_client(session_id, process_manager=None):
     if process_manager and (
         process_manager.is_session_busy(spec["id"]) or process_manager.is_global_busy()
     ):
-        raise RuntimeError("Сейчас работает управляемый процесс. Останови его или дождись завершения.")
+        raise RuntimeError(
+            "Сейчас работает управляемый процесс. Останови его или дождись завершения."
+        )
     with session_io(spec["id"], timeout=0) as acquired:
         if not acquired:
             raise RuntimeError("Сессия сейчас используется другой операцией админки.")
@@ -405,7 +408,12 @@ async def list_chats(session_id, process_manager=None, query="", unread_only=Fal
             )
             if needle:
                 haystack = " ".join(
-                    (dialog.name or "", username or "", str(dialog.id), str((lead or {}).get("source_channel") or ""))
+                    (
+                        dialog.name or "",
+                        username or "",
+                        str(dialog.id),
+                        str((lead or {}).get("source_channel") or ""),
+                    )
                 ).lower()
                 if needle not in haystack:
                     continue
@@ -418,7 +426,9 @@ async def list_chats(session_id, process_manager=None, query="", unread_only=Fal
                     "username": username,
                     "telegram_url": _chat_url(entity),
                     "last_date": dialog.date.astimezone(UTC).isoformat() if dialog.date else None,
-                    "last_message": dialog.message.message[:180] if dialog.message and dialog.message.message else "",
+                    "last_message": dialog.message.message[:180]
+                    if dialog.message and dialog.message.message
+                    else "",
                     "unread_count": int(dialog.unread_count or 0),
                     "manual": is_manual,
                     "lead_status": (lead or {}).get("status"),
@@ -426,7 +436,9 @@ async def list_chats(session_id, process_manager=None, query="", unread_only=Fal
                     "session_id": spec["id"],
                 }
             )
-        rows.sort(key=lambda item: (item["unread_count"] > 0, item["last_date"] or ""), reverse=True)
+        rows.sort(
+            key=lambda item: (item["unread_count"] > 0, item["last_date"] or ""), reverse=True
+        )
         return {"session_id": spec["id"], "items": rows[:limit], "total": len(rows)}
 
 
@@ -459,10 +471,16 @@ def _generate_reply(thread, goal):
 
     conversation = thread["messages"]
     hr_msgs = [item["text"] for item in conversation if item["role"] == "user" and item["text"]]
-    my_msgs = [item["text"] for item in conversation if item["role"] == "assistant" and item["text"]]
+    my_msgs = [
+        item["text"] for item in conversation if item["role"] == "assistant" and item["text"]
+    ]
     last_goal = str(goal or "").strip() or "Коротко и по делу ответить на последнее сообщение."
     latest_inbound = next(
-        (item["text"] for item in reversed(conversation) if item["role"] == "user" and item["text"]),
+        (
+            item["text"]
+            for item in reversed(conversation)
+            if item["role"] == "user" and item["text"]
+        ),
         "",
     )
     application = bool(
@@ -508,9 +526,13 @@ async def _prepare_message_with_client(client, identifier, goal):
         raise PermissionError("Это ручная переписка. По правилам проекта агент её не ведёт.")
     if thread["has_messages"]:
         if thread["last_out"]:
-            raise PermissionError("Последнее сообщение в этом чате наше. Повторное касание заблокировано.")
+            raise PermissionError(
+                "Последнее сообщение в этом чате наше. Повторное касание заблокировано."
+            )
         if thread["last_message_id"] != thread["last_inbound_id"]:
-            raise PermissionError("Последнее сообщение не является текстовым сообщением HR. Ответ заблокирован.")
+            raise PermissionError(
+                "Последнее сообщение не является текстовым сообщением HR. Ответ заблокирован."
+            )
         if thread["lead"] and (
             thread["lead"].get("status") == "declined"
             or thread["lead"].get("post_kind") not in {"job", "queued"}
@@ -537,7 +559,9 @@ async def _prepare_message_with_client(client, identifier, goal):
     if not record:
         raise LookupError("Контакт исчез из базы лидов.")
     if record.get("status") != "new" or record.get("post_kind", "job") != "job":
-        raise PermissionError("Первое касание доступно только для лида со статусом new и типом job.")
+        raise PermissionError(
+            "Первое касание доступно только для лида со статусом new и типом job."
+        )
     if not _source_is_fresh(record, max_days=30):
         raise PermissionError("Пост вакансии старше 30 дней или дата не подтверждена.")
     post = await humanize._fetch_post(client, record) or record.get("snippet") or ""
@@ -590,7 +614,9 @@ async def send_prepared_message(draft, process_manager=None):
                 or thread["last_message_id"] != draft.get("reply_to_id")
                 or thread["last_inbound_id"] != draft.get("reply_to_id")
             ):
-                raise RuntimeError("Переписка изменилась после подготовки. Обнови тред и создай новый ответ.")
+                raise RuntimeError(
+                    "Переписка изменилась после подготовки. Обнови тред и создай новый ответ."
+                )
             await tg.cmd_reply(
                 client,
                 SimpleNamespace(
@@ -606,7 +632,9 @@ async def send_prepared_message(draft, process_manager=None):
             import leads
 
             if CRON_LOCK_PATH.exists():
-                raise RuntimeError("Сейчас работает автопилот, ручное изменение базы заблокировано.")
+                raise RuntimeError(
+                    "Сейчас работает автопилот, ручное изменение базы заблокировано."
+                )
             record = _lead_for_contact(draft.get("lead", {}).get("value"))
             if not record or record.get("status") != "new":
                 raise RuntimeError("Лид изменился после подготовки. Холодное касание отменено.")
@@ -707,7 +735,9 @@ async def _execute_tool(name, args, context):
         )
     if name == "send_message":
         if not context["explicit_send"]:
-            raise PermissionError("Для отправки пользователь должен явно попросить написать/ответить/отправить.")
+            raise PermissionError(
+                "Для отправки пользователь должен явно попросить написать/ответить/отправить."
+            )
         draft = await prepare_message(
             args.get("contact"), args.get("goal") or "", session_id, manager
         )
@@ -717,9 +747,16 @@ async def _execute_tool(name, args, context):
             raise PermissionError("Запуск процесса должен быть явно запрошен пользователем.")
         task_id = str(args.get("task_id") or "")
         if task_id not in {
-            "responder", "responder_once", "cron_dry_run", "lead_scan",
-            "lead_prescribe", "vacancy_scan", "reconcile", "folders_sync",
-            "followups_preview", "warm_preview",
+            "responder",
+            "responder_once",
+            "cron_dry_run",
+            "lead_scan",
+            "lead_prescribe",
+            "vacancy_scan",
+            "reconcile",
+            "folders_sync",
+            "followups_preview",
+            "warm_preview",
         }:
             raise PermissionError("Эту операцию нельзя запускать через AI-чат.")
         return manager.start(

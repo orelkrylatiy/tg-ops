@@ -156,7 +156,8 @@ def _lead_statistics(records=None):
         "hr_warm": statuses["warm"],
         "hr_declined": statuses["declined"],
         "hr_review": sum(
-            1 for record in records
+            1
+            for record in records
             if record.get("type") == "username" and record.get("post_kind") == "review"
         ),
         "email_total": emails,
@@ -292,9 +293,7 @@ def build_summary(period, session_id, snapshot):
         "unread_chats": sum(_as_int(item.get("unread_chats")) for item in live_sessions),
     }
     for item in sessions:
-        item["metrics"] = _event_metrics(
-            _filter_events(all_events, period, item.get("id", ""))
-        )
+        item["metrics"] = _event_metrics(_filter_events(all_events, period, item.get("id", "")))
     metrics = _event_metrics(events)
     pipeline = _pipeline_snapshot()
     pipeline["operation_errors"] = metrics["operation_errors"]
@@ -526,8 +525,15 @@ async def collect_session_snapshot(previous=None):
                     {
                         key: value
                         for key, value in previous_by_id.get(spec["id"], {}).items()
-                        if key in {"account_name", "username", "user_id", "total_chats",
-                                   "active_chats_30d", "unread_chats"}
+                        if key
+                        in {
+                            "account_name",
+                            "username",
+                            "user_id",
+                            "total_chats",
+                            "active_chats_30d",
+                            "unread_chats",
+                        }
                     }
                 )
                 item["status"] = "busy" if "database is locked" in str(exc).lower() else "error"
@@ -591,8 +597,7 @@ class DashboardState:
         with self._lock:
             now = time.time()
             self._drafts = {
-                key: item for key, item in self._drafts.items()
-                if item["expires_at"] > now
+                key: item for key, item in self._drafts.items() if item["expires_at"] > now
             }
             self._drafts[draft_id] = {**draft, "expires_at": now + 600}
         return draft_id
@@ -610,14 +615,16 @@ def _lead_api_rows(query="", status=None, limit=100):
     needle = str(query or "").lower().strip()
     rows = []
     for record in records:
-        if record.get("type") != "username" or record.get("post_kind", "job") not in {"job", "queued"}:
+        if record.get("type") != "username" or record.get("post_kind", "job") not in {
+            "job",
+            "queued",
+        }:
             continue
         if status and record.get("status") != status:
             continue
         value = str(record.get("value") or "")
         haystack = " ".join(
-            str(record.get(key) or "")
-            for key in ("value", "source_channel", "note", "snippet")
+            str(record.get(key) or "") for key in ("value", "source_channel", "note", "snippet")
         ).lower()
         if needle and needle not in haystack:
             continue
@@ -639,7 +646,9 @@ def _lead_api_rows(query="", status=None, limit=100):
                 "snippet": str(record.get("snippet") or "")[:500],
             }
         )
-    rows.sort(key=lambda item: str(item.get("last_seen") or item.get("first_seen") or ""), reverse=True)
+    rows.sort(
+        key=lambda item: str(item.get("last_seen") or item.get("first_seen") or ""), reverse=True
+    )
     return rows[: max(1, min(300, _as_int(limit) or 100))]
 
 
@@ -677,7 +686,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
         return value
 
     def _check_local_request(self):
-        host = (self.headers.get("Host") or "").split(":", 1)[0].strip("[]").lower()
+        host_header = (self.headers.get("Host") or "").lower()
+        if host_header.startswith("["):
+            host = host_header[1:].split("]", 1)[0]
+        else:
+            host = host_header.split(":", 1)[0]
         if host not in {"127.0.0.1", "localhost", "::1"}:
             self._send_json({"error": "Доступ разрешён только с localhost."}, status=403)
             return False
@@ -825,7 +838,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 if task is None:
                     raise ValueError("Неизвестная операция")
                 if task["sends"] and body.get("confirm") is not True:
-                    raise PermissionError("Для запуска отправляющей операции нужно явное подтверждение.")
+                    raise PermissionError(
+                        "Для запуска отправляющей операции нужно явное подтверждение."
+                    )
                 result = self.dashboard_state.process_manager.start(
                     task_id,
                     session_id=body.get("session_id"),
@@ -834,7 +849,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json({"process": result}, status=202)
                 return
             if path == "/api/processes/stop":
-                result = self.dashboard_state.process_manager.stop(str(body.get("process_id") or ""))
+                result = self.dashboard_state.process_manager.stop(
+                    str(body.get("process_id") or "")
+                )
                 self._send_json({"process": result})
                 return
             if path == "/api/chat/draft":
@@ -881,7 +898,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/leads/status":
                 if CRON_LOCK_PATH.exists() or self.dashboard_state.process_manager.is_global_busy():
-                    raise RuntimeError("База лидов занята автопилотом. Изменение статуса заблокировано.")
+                    raise RuntimeError(
+                        "База лидов занята автопилотом. Изменение статуса заблокировано."
+                    )
                 value = str(body.get("value") or "").strip().lower()
                 status = str(body.get("status") or "")
                 note = str(body.get("note") or "")[:500]
@@ -906,9 +925,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     record["contacted_at"] = datetime.now(UTC).isoformat(timespec="seconds")
                 if status == "warm":
                     record["warm_since"] = datetime.now(UTC).isoformat(timespec="seconds")
-                    record["warm_recontact_at"] = (
-                        datetime.now(UTC) + timedelta(days=20)
-                    ).strftime("%Y-%m-%d %H:%M")
+                    record["warm_recontact_at"] = (datetime.now(UTC) + timedelta(days=20)).strftime(
+                        "%Y-%m-%d %H:%M"
+                    )
                     record["warm_recontact_count"] = 0
                 if note:
                     record["note"] = note
@@ -944,7 +963,9 @@ def main():
     parser.add_argument("--refresh-seconds", type=int, default=300)
     args = parser.parse_args()
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
-        parser.error("Админка принимает соединения только с localhost. Для удалённого доступа используй SSH tunnel.")
+        parser.error(
+            "Админка принимает соединения только с localhost. Для удалённого доступа используй SSH tunnel."
+        )
 
     state = DashboardState()
     state.refresh_async()
@@ -956,7 +977,9 @@ def main():
     handler = partial(DashboardHandler, dashboard_state=state)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"TG Ops Control Center: http://{args.host}:{args.port}")
-    print("Безопасность: loopback-only · отправки через humanizer-framework · команды по allow-list")
+    print(
+        "Безопасность: loopback-only · отправки через humanizer-framework · команды по allow-list"
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

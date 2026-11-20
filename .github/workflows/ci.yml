@@ -34,6 +34,20 @@ jobs:
       - name: Admin CLI smoke test
         run: python admin.py --help
 
+      - name: Admin UI JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          html = Path("admin/index.html").read_text(encoding="utf-8")
+          match = re.search(r"<script>(.*?)</script>", html, re.DOTALL)
+          if not match:
+              raise SystemExit("Admin UI script block not found")
+          Path("/tmp/tg-ops-admin.js").write_text(match.group(1), encoding="utf-8")
+          PY
+          node --check /tmp/tg-ops-admin.js
+
       - name: Syntax check all scripts
         run: |
           set -e

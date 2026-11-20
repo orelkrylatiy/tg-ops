@@ -34,7 +34,11 @@ class AgentIntentTests(unittest.TestCase):
             parse_plan('{"tool":"search_contacts","args":{"query":"frontend"}}'),
             expected,
         )
-        fenced = chr(96) * 3 + 'json\n{"tool":"search_contacts","args":{"query":"frontend"}}\n' + chr(96) * 3
+        fenced = (
+            chr(96) * 3
+            + 'json\n{"tool":"search_contacts","args":{"query":"frontend"}}\n'
+            + chr(96) * 3
+        )
         self.assertEqual(parse_plan(fenced), expected)
 
     def test_people_and_custom_folders_are_manual_but_status_folders_are_not(self):

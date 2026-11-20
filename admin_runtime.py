@@ -196,8 +196,14 @@ def build_command(task_id, params=None):
         return base + ["leads.py", "scan", "--profile", profile, "--limit", str(limit)]
     if task_id == "lead_prescribe":
         return base + [
-            "leads.py", "prescribe", "--profile", profile, "--limit", str(limit),
-            "--daily-new-limit", "20",
+            "leads.py",
+            "prescribe",
+            "--profile",
+            profile,
+            "--limit",
+            str(limit),
+            "--daily-new-limit",
+            "20",
         ]
     if task_id == "vacancy_scan":
         return base + ["scan_jobs.py", "scan", "--profile", profile, "-n", str(limit)]
@@ -260,27 +266,19 @@ class ProcessManager:
     def is_session_busy(self, session_id):
         with self._lock:
             self._refresh_locked()
-            return any(
-                item["session_id"] == session_id
-                for item in self._active.values()
-            )
+            return any(item["session_id"] == session_id for item in self._active.values())
 
     def is_global_busy(self):
         with self._lock:
             self._refresh_locked()
-            return any(
-                _TASKS[item["task_id"]].get("global")
-                for item in self._active.values()
-            )
+            return any(_TASKS[item["task_id"]].get("global") for item in self._active.values())
 
     def list_processes(self):
         with self._lock:
             self._refresh_locked()
             active = [self._public_record(item) for item in self._active.values()]
             external_lock = self._external_cron_lock()
-            if external_lock and any(
-                item["pid"] == external_lock.get("pid") for item in active
-            ):
+            if external_lock and any(item["pid"] == external_lock.get("pid") for item in active):
                 external_lock = None
             return {
                 "active": active,
@@ -346,8 +344,7 @@ class ProcessManager:
             if any(item["session_id"] == selected_id for item in self._active.values()):
                 raise RuntimeError("Для этой Telegram-сессии уже запущен процесс.")
             if task_id in {"responder", "responder_once"} and any(
-                item["task_id"] in {"responder", "responder_once"}
-                for item in self._active.values()
+                item["task_id"] in {"responder", "responder_once"} for item in self._active.values()
             ):
                 raise RuntimeError("Responder уже запущен. Второй экземпляр использовать нельзя.")
 
