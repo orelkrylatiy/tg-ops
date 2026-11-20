@@ -23,8 +23,8 @@ from pathlib import Path
 from typing import Any
 
 from admin_runtime import ProcessManager, session_io
-from tgcommon import HERE, configured_sessions
 from tg import get_client, send_channel_post, _engine_log_lines
+from tgcommon import HERE, configured_sessions
 
 WIKI_REPO = "orelkrylatiy/personal-wiki"
 WIKI_BRANCH = os.getenv("PERSONAL_WIKI_BRANCH", "main")
@@ -359,13 +359,18 @@ class ContentStudio:
         article = self.wiki.article(topic_id, language)
 
         try:
-            import humanize
             from humanizer_framework.framework import CommunicationFramework
             from humanizer_framework.models import (
-                CommunicationRequest, Message, MessageType, StyleConstraints, VoiceProfile,
+                CommunicationRequest,
+                Message,
+                MessageType,
+                StyleConstraints,
+                VoiceProfile,
             )
             from humanizer_framework.policies import PolicyRegistry
             from humanizer_framework.validators import normalize_output, validate_output
+
+            import humanize
 
             os.environ.setdefault("HUMANIZER_PROJECT", "tg-ops")
             registry = PolicyRegistry()
