@@ -11,9 +11,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from content_studio import (
+    INDEX_RE,
     ContentStudio,
     ContentStudioError,
-    INDEX_RE,
     PersonalWikiClient,
     _parse_frontmatter,
     _topic_key,
@@ -128,9 +128,8 @@ class ContentStudioTests(unittest.TestCase):
             self.assertEqual(en["message_id"], 42)
 
     def test_generation_uses_humanizer_and_requires_explicit_approval(self):
-        from humanizer_framework.providers.mock import MockProvider
-
         import humanize
+        from humanizer_framework.providers.mock import MockProvider
 
         with tempfile.TemporaryDirectory() as directory:
             state_path = Path(directory) / "content-studio.json"
