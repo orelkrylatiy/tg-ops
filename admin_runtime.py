@@ -226,12 +226,23 @@ class ProcessManager:
         self._active = {}
         self._history = deque(maxlen=60)
 
+    @staticmethod
+    def _clear_cron_lock_for_pid(pid):
+        try:
+            raw = CRON_LOCK.read_text(encoding="utf-8").strip()
+            if raw.isdigit() and int(raw) == int(pid):
+                CRON_LOCK.unlink(missing_ok=True)
+        except OSError:
+            pass
+
     def _refresh_locked(self):
         for record in list(self._active.values()):
             process = record["process"]
             code = process.poll()
             if code is None:
                 continue
+            if record["task_id"] == "cron_run":
+                self._clear_cron_lock_for_pid(record["pid"])
             record["status"] = "completed" if code == 0 else "failed"
             record["exit_code"] = code
             record["finished_at"] = _now()
@@ -425,6 +436,8 @@ class ProcessManager:
                         process.wait(timeout=3)
             except ProcessLookupError:
                 pass
+            if record["task_id"] == "cron_run":
+                self._clear_cron_lock_for_pid(record["pid"])
             record["status"] = "stopped"
             record["finished_at"] = _now()
             record["exit_code"] = process.poll()

@@ -1,4 +1,7 @@
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from admin_agent import (
     _manual_folder_peer_ids,
@@ -76,6 +79,16 @@ class ProcessAllowlistTests(unittest.TestCase):
         profile = _profiles()[0]
         with self.assertRaises(ValueError):
             build_command("lead_scan", {"profile": profile, "limit": 9000})
+
+    def test_stopping_managed_cron_clears_only_its_own_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path = Path(directory) / ".cron.lock"
+            lock_path.write_text("12345", encoding="utf-8")
+            with patch("admin_runtime.CRON_LOCK", lock_path):
+                ProcessManager._clear_cron_lock_for_pid(99999)
+                self.assertTrue(lock_path.exists())
+                ProcessManager._clear_cron_lock_for_pid(12345)
+                self.assertFalse(lock_path.exists())
 
     def test_catalog_marks_sending_operations(self):
         tasks = {item["id"]: item for item in ProcessManager().task_catalog()}
