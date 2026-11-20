@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from admin_runtime import ProcessManager, session_io
-from tg import get_client, send_channel_post, _engine_log_lines
+from tg import _engine_log_lines, get_client, send_channel_post
 from tgcommon import HERE, configured_sessions
 
 WIKI_REPO = "orelkrylatiy/personal-wiki"
