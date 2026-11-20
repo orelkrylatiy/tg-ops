@@ -772,7 +772,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self.wfile.write(image)
                 return
             if parsed.path == "/api/content/history":
-                session_id = query.get("session_id", ["userbot"])[0]
+                session_id = query.get("session_id", ["langiaflow"])[0]
                 self._send_json(CONTENT_STUDIO.scan_channel_history(session_id))
                 return
             if parsed.path == "/api/summary":
@@ -906,7 +906,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     body.get("language", "ru"),
                     body.get("message_id", 0),
                     body.get("confirm") is True,
-                    body.get("session_id", "userbot"),
+                    body.get("session_id", "langiaflow"),
                 )
                 self._send_json({"published": result})
                 return
