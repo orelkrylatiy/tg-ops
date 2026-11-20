@@ -740,9 +740,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(CONTENT_STUDIO.status())
                 return
             if parsed.path == "/api/content/topics":
-                self._send_json({
-                    "items": CONTENT_STUDIO.list_topics(query.get("language", ["ru"])[0])
-                })
+                self._send_json(
+                    {"items": CONTENT_STUDIO.list_topics(query.get("language", ["ru"])[0])}
+                )
                 return
             if parsed.path == "/api/content/source":
                 topic_id = query.get("topic_id", [""])[0]
