@@ -289,6 +289,7 @@ class ContentStudio:
                 "private_invite": "+" in channel_ref,
             },
             "sessions": sessions,
+            "default_session": os.getenv("LANGIAFLOW_TELEGRAM_SESSION", "userbot"),
             "publish_mode": "manual_approval",
             "automatic_publishing": False,
         }
@@ -315,6 +316,19 @@ class ContentStudio:
                 "has_card": True,
             })
         return items
+
+    def get_source_info(self, topic_id: str, language: str = "ru") -> dict[str, Any]:
+        article = self.wiki.article(topic_id, language)
+        return {
+            "topic_id": topic_id,
+            "language": language,
+            "title": article["title"],
+            "source_url": article["source_url"],
+            "source_commit": article["source_commit"],
+            "source_reviewed": article["source_reviewed"],
+            "provenance": article["provenance"],
+            "card_path": article["card_path"],
+        }
 
     def get_draft(self, topic_id: str, language: str = "ru") -> dict[str, Any] | None:
         key = _topic_key(topic_id, language)
@@ -594,7 +608,10 @@ class ContentStudio:
                         slug = re.sub(r"^\d{2}-", "", topic["id"])
                         prefix = "en/" if lang == "en" else ""
                         url = f"https://langiaflow.site/{prefix}blog/{slug}/"
-                        found = self._duplicate_matches(topic["title"], url, history)
+                        # The index title is Russian. For EN, only exact canonical
+                        # article links are safe duplicate evidence.
+                        match_title = topic["title"] if lang == "ru" else ""
+                        found = self._duplicate_matches(match_title, url, history)
                         if found:
                             matches.append({
                                 "topic_id": topic["id"],
@@ -664,6 +681,9 @@ class ContentStudio:
                     )
                 if len(draft["text"]) > 1024:
                     raise ContentStudioError("Подпись превышает лимит Telegram в 1024 символа.")
+                image = self.wiki.read_bytes(draft["card_path"])
+                if not image:
+                    raise ContentStudioError("Карточка Personal Wiki пустая.")
                 with self._lock:
                     state = self._read_state()
                     current = state["drafts"].get(key)
@@ -673,7 +693,6 @@ class ContentStudio:
                     current["publishing_started_at"] = _now()
                     state["updated_at"] = _now()
                     self._write_state(state)
-                image = self.wiki.read_bytes(draft["card_path"])
                 stream = io.BytesIO(image)
                 stream.name = f"{topic_id}.png"
                 try:
@@ -739,15 +758,24 @@ class ContentStudio:
         )
 
     def mark_published(
-        self, topic_id: str, language: str, message_id: int, confirmed: bool
+        self,
+        topic_id: str,
+        language: str,
+        message_id: int,
+        confirmed: bool,
+        session_id: str = "userbot",
     ) -> dict[str, Any]:
         if confirmed is not True:
             raise ContentStudioError("Подтверди, что эта тема уже опубликована.")
         key = _topic_key(topic_id, language)
-        topics = {item["id"]: item for item in self.wiki.list_topics()}
-        topic = topics.get(topic_id)
-        if not topic:
-            raise ContentStudioError("Неизвестная тема.")
+        article = self.wiki.article(topic_id, language)
+        history = asyncio.run(self._scan_async(session_id, topic_id, language))["history"]
+        message = next(
+            (item for item in history if int(item.get("message_id", 0)) == int(message_id)),
+            None,
+        )
+        if not message:
+            raise ContentStudioError("Сообщение не найдено в истории выбранного канала.")
         with self._lock:
             state = self._read_state()
             if key in state["published"]:
@@ -755,8 +783,9 @@ class ContentStudio:
             record = {
                 "topic_id": topic_id,
                 "language": language,
-                "title": topic["title"],
-                "published_at": _now(),
+                "title": article["title"],
+                "source_url": article["source_url"],
+                "published_at": message.get("date") or _now(),
                 "message_id": int(message_id),
                 "matched_by": "manual_confirmation",
             }
