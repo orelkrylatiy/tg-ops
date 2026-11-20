@@ -436,6 +436,11 @@ class ContentStudio:
                 voice=voice,
                 constraints=constraints,
             )
+            if language == "en" and int(topic_id[:2]) >= 21:
+                request.business_rules.append(
+                    "English source articles 21–40 are shorter than the Russian originals. "
+                    "Use only the available English text; do not fill gaps from memory or infer missing details."
+                )
             framework = CommunicationFramework(
                 provider=humanize._generation_provider(),
                 policies=registry,
