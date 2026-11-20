@@ -30,12 +30,14 @@ from admin_agent import (
     send_prepared_message,
 )
 from admin_runtime import ProcessManager, session_io
+from content_studio import ContentStudio
 from ops_telemetry import read_events, record_event
 from tgcommon import HERE, SERVICE_CHAT_IDS, configured_sessions, connect_any
 
 LEADS_PATH = Path(HERE) / "leads" / "leads.jsonl"
 VACANCIES_PATH = Path(HERE) / "vacancies" / "vacancies.jsonl"
 INDEX_PATH = Path(HERE) / "admin" / "index.html"
+CONTENT_INDEX_PATH = Path(HERE) / "admin" / "content.html"
 CRON_LOCK_PATH = Path(HERE) / "leads" / ".cron.lock"
 PERIODS = {
     "24h": timedelta(hours=24),
@@ -47,6 +49,7 @@ VALID_LEAD_STATUSES = {"new", "contacted", "replied", "warm", "declined"}
 
 PROCESS_MANAGER = ProcessManager()
 AGENT_SERVICE = AgentService(PROCESS_MANAGER)
+CONTENT_STUDIO = ContentStudio(PROCESS_MANAGER)
 
 
 def _utc_now():
@@ -723,6 +726,48 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            if parsed.path in {"/content", "/content.html"}:
+                body = CONTENT_INDEX_PATH.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            if parsed.path == "/api/content/status":
+                self._send_json(CONTENT_STUDIO.status())
+                return
+            if parsed.path == "/api/content/topics":
+                self._send_json({
+                    "items": CONTENT_STUDIO.list_topics(query.get("language", ["ru"])[0])
+                })
+                return
+            if parsed.path == "/api/content/draft":
+                topic_id = query.get("topic_id", [""])[0]
+                language = query.get("language", ["ru"])[0]
+                if not topic_id:
+                    raise ValueError("Не указана тема.")
+                self._send_json({"draft": CONTENT_STUDIO.get_draft(topic_id, language)})
+                return
+            if parsed.path == "/api/content/card":
+                topic_id = query.get("topic_id", [""])[0]
+                if not topic_id:
+                    raise ValueError("Не указана тема.")
+                image = CONTENT_STUDIO.get_card(topic_id)
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(image)))
+                self.send_header("Cache-Control", "private, max-age=300")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(image)
+                return
+            if parsed.path == "/api/content/history":
+                session_id = query.get("session_id", ["userbot"])[0]
+                self._send_json(CONTENT_STUDIO.scan_channel_history(session_id))
+                return
             if parsed.path == "/api/summary":
                 self._send_json(build_summary(period, session_id, snapshot))
                 return
@@ -821,6 +866,42 @@ class DashboardHandler(BaseHTTPRequestHandler):
         try:
             body = self._read_json()
             path = urlparse(self.path).path
+            if path == "/api/content/generate":
+                draft = CONTENT_STUDIO.generate_draft(
+                    body.get("topic_id", ""),
+                    body.get("language", "ru"),
+                    body.get("angle", ""),
+                    body.get("format", "practical"),
+                )
+                self._send_json({"draft": draft}, status=201)
+                return
+            if path == "/api/content/approve":
+                draft = CONTENT_STUDIO.approve_draft(
+                    body.get("topic_id", ""),
+                    body.get("language", "ru"),
+                    body.get("review_confirmed") is True,
+                )
+                self._send_json({"draft": draft})
+                return
+            if path == "/api/content/publish":
+                result = CONTENT_STUDIO.publish(
+                    body.get("topic_id", ""),
+                    body.get("language", "ru"),
+                    body.get("session_id", ""),
+                    body.get("confirm") is True,
+                    body.get("allow_possible_duplicate") is True,
+                )
+                self._send_json(result, status=201)
+                return
+            if path == "/api/content/mark-published":
+                result = CONTENT_STUDIO.mark_published(
+                    body.get("topic_id", ""),
+                    body.get("language", "ru"),
+                    body.get("message_id", 0),
+                    body.get("confirm") is True,
+                )
+                self._send_json({"published": result})
+                return
             if path == "/api/refresh":
                 started = self.dashboard_state.refresh_async()
                 self._send_json({"started": started, "refreshing": True}, status=202)
