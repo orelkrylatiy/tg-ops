@@ -128,8 +128,9 @@ class ContentStudioTests(unittest.TestCase):
             self.assertEqual(en["message_id"], 42)
 
     def test_generation_uses_humanizer_and_requires_explicit_approval(self):
-        import humanize
         from humanizer_framework.providers.mock import MockProvider
+
+        import humanize
 
         with tempfile.TemporaryDirectory() as directory:
             state_path = Path(directory) / "content-studio.json"
