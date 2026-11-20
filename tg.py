@@ -33,14 +33,27 @@ from telethon.tl.functions.messages import SendReactionRequest
 from telethon.tl.types import ReactionEmoji
 
 from ops_telemetry import is_resume_file, record_event
-from tgcommon import SERVICE_CHAT_IDS, connect_any, load_phone
+from tgcommon import SERVICE_CHAT_IDS, configured_sessions, connect_any, load_phone
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
-async def get_client():
-    client = await connect_any()
+async def get_client(session_id: str | None = None, *, allow_login: bool = True):
+    """Open the configured Telegram session; admin workflows can disable interactive login."""
+    session_path = None
+    if session_id:
+        spec = next(
+            (item for item in configured_sessions() if item["id"] == session_id),
+            None,
+        )
+        if not spec or not spec.get("exists"):
+            raise RuntimeError(f"Telegram session {session_id!r} is not configured or its file is missing.")
+        session_path = spec["session_path"]
+    client = await connect_any(session_path=session_path)
     if not await client.is_user_authorized():
+        if not allow_login:
+            await client.disconnect()
+            raise RuntimeError(f"Telegram session {session_id or 'default'!r} is not authorized.")
         phone = load_phone()
         if not phone:
             print("НЕ авторизован и TG_PHONE не найден")
@@ -54,6 +67,31 @@ async def get_client():
             pwd = getpass.getpass("Пароль 2FA: ")
             await client.sign_in(password=pwd)
     return client
+
+
+async def send_channel_post(client, channel, media, caption: str):
+    """The single TG Ops send path for approved public channel posts."""
+    if len(caption) > 1024:
+        raise ValueError("Telegram photo captions are limited to 1024 characters.")
+    junk = _engine_log_lines(caption)
+    if junk:
+        raise ValueError("Refusing to send a caption containing Humanizer engine log lines.")
+    message = await client.send_file(
+        channel,
+        media,
+        caption=caption,
+        force_document=False,
+        parse_mode=None,
+    )
+    record_event(
+        "channel_post_sent",
+        category="manual",
+        chat_id=getattr(channel, "id", None),
+        chat_name=getattr(channel, "title", "channel"),
+        file_name=getattr(media, "name", "telegram-card.png"),
+        source="tg.py",
+    )
+    return message
 
 
 def find_dialog(dialogs, query):
