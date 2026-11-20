@@ -83,14 +83,18 @@ async def send_channel_post(client, channel, media, caption: str):
         force_document=False,
         parse_mode=None,
     )
-    record_event(
-        "channel_post_sent",
-        category="manual",
-        chat_id=getattr(channel, "id", None),
-        chat_name=getattr(channel, "title", "channel"),
-        file_name=getattr(media, "name", "telegram-card.png"),
-        source="tg.py",
-    )
+    try:
+        record_event(
+            "channel_post_sent",
+            category="manual",
+            chat_id=getattr(channel, "id", None),
+            chat_name=getattr(channel, "title", "channel"),
+            file_name=getattr(media, "name", "telegram-card.png"),
+            source="tg.py",
+        )
+    except Exception:
+        # Telemetry must never turn a confirmed Telegram send into an unknown result.
+        pass
     return message
 
 
