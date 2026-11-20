@@ -289,7 +289,7 @@ class ContentStudio:
                 "private_invite": "+" in channel_ref,
             },
             "sessions": sessions,
-            "default_session": os.getenv("LANGIAFLOW_TELEGRAM_SESSION", "userbot"),
+            "default_session": os.getenv("LANGIAFLOW_TELEGRAM_SESSION", "langiaflow"),
             "publish_mode": "manual_approval",
             "automatic_publishing": False,
         }
@@ -517,6 +517,15 @@ class ContentStudio:
             self._write_state(state)
             return draft
 
+    def _ensure_dedicated_session(self, session_id: str) -> None:
+        responder_session = os.getenv("TG_OPS_SESSION", "userbot")
+        allow_shared = os.getenv("LANGIAFLOW_ALLOW_SHARED_SESSION", "").lower() in {"1", "true", "yes", "on"}
+        if session_id == responder_session and not allow_shared:
+            raise ContentStudioError(
+                "Эта сессия используется HR-responder. Создай отдельную Telethon-сессию "
+                "с id=langiaflow для канала, чтобы не блокировать HR-переписки."
+            )
+
     def _assert_idle(self) -> None:
         if CRON_LOCK_PATH.exists():
             raise ContentStudioError("Автопилот сейчас использует Telegram. Повтори позже.")
@@ -588,6 +597,7 @@ class ContentStudio:
 
     async def _scan_async(self, session_id: str, topic_id: str | None = None, language: str = "ru") -> dict[str, Any]:
         self._assert_idle()
+        self._ensure_dedicated_session(session_id)
         spec = _session_spec(session_id)
         with session_io(session_id, timeout=0) as acquired:
             if not acquired:
@@ -643,13 +653,14 @@ class ContentStudio:
             finally:
                 await client.disconnect()
 
-    def scan_channel_history(self, session_id: str = "userbot") -> dict[str, Any]:
+    def scan_channel_history(self, session_id: str = "langiaflow") -> dict[str, Any]:
         return asyncio.run(self._scan_async(session_id))
 
     async def _publish_async(
         self, topic_id: str, language: str, session_id: str, allow_possible_duplicate: bool
     ) -> dict[str, Any]:
         self._assert_idle()
+        self._ensure_dedicated_session(session_id)
         key = _topic_key(topic_id, language)
         with self._lock:
             state = self._read_state()
@@ -763,7 +774,7 @@ class ContentStudio:
         language: str,
         message_id: int,
         confirmed: bool,
-        session_id: str = "userbot",
+        session_id: str = "langiaflow",
     ) -> dict[str, Any]:
         if confirmed is not True:
             raise ContentStudioError("Подтверди, что эта тема уже опубликована.")
