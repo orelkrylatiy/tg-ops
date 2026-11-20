@@ -29,7 +29,7 @@ from types import SimpleNamespace
 from telethon import functions, types
 
 import leads
-from ops_telemetry import record_event
+from admin.scan_reports import append_report
 from tgcommon import HERE, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -297,7 +297,8 @@ async def cmd_channels(client, args):
 
 async def cmd_scan(client, args):
     print(f"Профиль: {args.profile} — {args.title}")
-    since = datetime.now(UTC) - timedelta(days=args.days)
+    started_at = datetime.now(UTC)
+    since = started_at - timedelta(days=args.days)
     targets = []
     if args.channels:
         # явный список из config.json / CLI: @хэндлы, t.me-ссылки или числовые id
@@ -340,23 +341,20 @@ async def cmd_scan(client, args):
                 targets.append(d)
     print(f"Сканирую {len(targets)} каналов/групп с {since:%d.%m.%Y}…\n")
     found = 0
-    posts_scanned = 0
-    channels_scanned = 0
-    leads_added = 0
     rows = []
+    channels_scanned = 0
+    channels_failed = 0
+    messages_scanned = 0
     stack_re = ML_STACK_RE if args.profile == "ml" else STACK_RE
     for d in targets:
         try:
             msgs = await fetch_messages(client, d.entity, args.n, since)
         except Exception as e:
-            record_event(
-                "operation_failed", operation="vacancy_scan_channel",
-                error_type=type(e).__name__, chat_name=d.name, source="scan_jobs.py"
-            )
+            channels_failed += 1
             print(f"!! {d.name!r}: {e}")
             continue
-        posts_scanned += len(msgs)
         channels_scanned += 1
+        messages_scanned += len(msgs)
         for m in msgs:
             text = m.text or ""
             if text:  # лиды собираем из всех постов, не только подходящих под вакансию
@@ -366,7 +364,7 @@ async def cmd_scan(client, args):
                         if getattr(d.entity, "username", None)
                         else ""
                     )
-                    leads_added += leads.collect_from_text(
+                    leads.collect_from_text(
                         text,
                         channel=d.name,
                         channel_id=d.id,
@@ -424,12 +422,25 @@ async def cmd_scan(client, args):
     new = save_findings(args.out_dir, rows, note=f"профиль {args.profile}")
     print(f"Сохранено: {len(new)} новых записей → {args.out_dir}/vacancies.jsonl + digest")
     print(f"Итого подходящих вакансий: {found}")
-    record_event(
-        "scan_completed", scan_type="vacancies", profile=args.profile,
-        channels_scanned=channels_scanned, posts_scanned=posts_scanned,
-        vacancies_found=found, new_vacancies=len(new), leads_found=leads_added,
-        source="scan_jobs.py"
-    )
+    try:
+        append_report(
+            {
+                "kind": "vacancy_scan",
+                "source": "telegram",
+                "profile": args.profile,
+                "started_at": started_at.isoformat(),
+                "window_days": args.days,
+                "channels_scanned": channels_scanned,
+                "channels_total": len(targets),
+                "channels_failed": channels_failed,
+                "messages_scanned": messages_scanned,
+                "matched": found,
+                "new": len(new),
+                "dry_run": False,
+            }
+        )
+    except OSError as e:
+        print(f"!! не удалось записать отчёт скана: {type(e).__name__}")
     if getattr(args, "push", False):
         await push_rows(client, args.out_dir, new)
 
@@ -543,6 +554,8 @@ def main():
 
     if args.cmd == "scan":  # CLI-флаг сильнее профиля, профиль сильнее legacy
         prof = resolve_profile(cfg, args.profile)
+        if args.channels is None and prof.get("channels"):
+            args.channels = prof["channels"]
         # В профиле исторически поле называется ``limit``, а CLI-настройка
         # количества сообщений на канал — ``-n`` (args.n). Без этого явного
         # сопоставления get_messages(limit=None) читает только одно сообщение.

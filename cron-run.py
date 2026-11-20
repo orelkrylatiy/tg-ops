@@ -1,8 +1,7 @@
 """Крон-автопилот tg-ops: прописка → догонки → холодные, одним прогоном.
 
-Решение Макса 21.10: скрипт ходит сам (агент не нужен — LLM-генерация внутри
-humanize/humanize_reply идёт через фреймворк) и сам отправляет. Ставится в
-Task Scheduler на cron-run.bat; лог — leads/cron-run.log (перенаправление в .bat).
+Скрипт выполняет автономный цикл сбора и отправки. Планировщик запускает
+cron-run.py; журнал сохраняется в leads/cron-run.log.
 
 Гарантии одного прогона:
   • лок leads/.cron.lock — один писатель базы (урок инцидента с порчей 21.10);
@@ -28,7 +27,7 @@ import sys
 import time
 from datetime import datetime
 
-from ops_telemetry import record_event
+from admin.scan_reports import append_report
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEADS = os.path.join(HERE, "leads")
@@ -85,7 +84,6 @@ def acquire_lock():
 
 def run_step(name, cmd):
     print(f"\n=== {name}: py {' '.join(cmd)}")
-    started = time.monotonic()
     p = subprocess.run(
         [sys.executable] + cmd,
         cwd=HERE,
@@ -94,15 +92,16 @@ def run_step(name, cmd):
         encoding="utf-8",
         errors="replace",
     )
-    record_event(
-        "cron_step", step=name, success=p.returncode == 0,
-        duration_ms=round((time.monotonic() - started) * 1000), source="cron-run.py"
-    )
     if (p.stdout or "").strip():
         print(p.stdout.rstrip())
     if (p.stderr or "").strip():
         print(f"[stderr] {p.stderr.strip()[:1000]}")
+    if p.returncode:
+        FAILED_STEPS.append(name)
     return p
+
+
+FAILED_STEPS = []
 
 
 def read_report(path):
@@ -149,20 +148,42 @@ def main():
         print(f"[{stamp()}] !! другой прогон держит лок {LOCK} — выходим")
         return 1
 
-    record_event("cron_run", status="started", dry_run=args.dry_run, profile=args.profile)
-    completed = False
     st = load_state()
     if st.get("date") != f"{datetime.now():%Y-%m-%d}":
-        st = {"date": f"{datetime.now():%Y-%m-%d}", "sent_cold": 0, "sent_followup": 0,
-              "sent_warm": 0, "last_outbound_error": "", "last_outbound_error_at": ""}
+        st = {
+            "date": f"{datetime.now():%Y-%m-%d}",
+            "sent_cold": 0,
+            "sent_followup": 0,
+            "sent_warm": 0,
+            "last_outbound_error": "",
+            "last_outbound_error_at": "",
+        }
+    run_completed = False
     try:
+        started_at = datetime.now().astimezone().isoformat()
+        sent_before = {
+            "followup": st.get("sent_followup", 0),
+            "warm": st.get("sent_warm", 0),
+            "cold": st.get("sent_cold", 0),
+        }
+        FAILED_STEPS.clear()
+        # Скан вакансий пишет базу и digest; HR-скан ниже отвечает за очередь лидов.
+        run_step(
+            "скан вакансий",
+            ["scan_jobs.py", "scan", "--profile", args.profile, "--limit", str(args.scan_limit)],
+        )
         # 1) прописка: скан + фильтры + верификация, ничего не отправляет
         run_step(
             "прописка",
             [
-                "leads.py", "prescribe", "--profile", args.profile,
-                "--limit", str(args.scan_limit),
-                "--daily-new-limit", str(args.prescribe_cap),
+                "leads.py",
+                "prescribe",
+                "--profile",
+                args.profile,
+                "--limit",
+                str(args.scan_limit),
+                "--daily-new-limit",
+                str(args.prescribe_cap),
             ],
         )
 
@@ -173,8 +194,11 @@ def main():
             reconcile_cmd.append("--dry-run")
         run_step("сверка ЛС", reconcile_cmd)
 
-        budget = args.daily_cap - st.get("sent_cold", 0) - st.get("sent_followup", 0) - st.get(
-            "sent_warm", 0
+        budget = (
+            args.daily_cap
+            - st.get("sent_cold", 0)
+            - st.get("sent_followup", 0)
+            - st.get("sent_warm", 0)
         )
         if budget <= 0:
             print(
@@ -201,7 +225,14 @@ def main():
         # 2.5) тёплые возвраты: «вакансий нет» → касание через 20 дней (спека §3)
         warm_budget = min(args.warm, budget)
         if warm_budget > 0:
-            cmd = ["leads.py", "warm-due", "--limit", str(warm_budget), "--report-json", REPORT_WARM]
+            cmd = [
+                "leads.py",
+                "warm-due",
+                "--limit",
+                str(warm_budget),
+                "--report-json",
+                REPORT_WARM,
+            ]
             if not args.dry_run:
                 cmd.append("--send")
             run_step("тёплые возвраты", cmd)
@@ -225,8 +256,14 @@ def main():
             )
             if os.path.exists(MAP) and os.path.getsize(MAP) > 4:
                 cmd = [
-                    "leads.py", "outreach", "--map", MAP,
-                    "--limit", str(cold_budget), "--report-json", REPORT_COLD,
+                    "leads.py",
+                    "outreach",
+                    "--map",
+                    MAP,
+                    "--limit",
+                    str(cold_budget),
+                    "--report-json",
+                    REPORT_COLD,
                 ]
                 if args.dry_run:
                     cmd.append("--dry-run")
@@ -251,15 +288,29 @@ def main():
             f"\n[{stamp()}] итог за {st['date']}: догонок {st['sent_followup']}, "
             f"тёплых {st.get('sent_warm', 0)}, холодных {st['sent_cold']} из лимита {args.daily_cap}"
         )
-        completed = True
+        run_completed = True
         return 0
     finally:
-        record_event(
-            "cron_run", status="completed" if completed else "failed",
-            sent_cold=st.get("sent_cold", 0),
-            sent_followup=st.get("sent_followup", 0),
-            sent_warm=st.get("sent_warm", 0), source="cron-run.py"
-        )
+        try:
+            append_report(
+                {
+                    "kind": "autopilot_run",
+                    "source": "systemd_timer",
+                    "profile": args.profile,
+                    "started_at": started_at,
+                    "status": (
+                        "failed" if not run_completed else
+                        "completed_with_errors" if FAILED_STEPS else "completed"
+                    ),
+                    "failed_steps": FAILED_STEPS,
+                    "dry_run": args.dry_run,
+                    "sent_followup": st.get("sent_followup", 0) - sent_before["followup"],
+                    "sent_warm": st.get("sent_warm", 0) - sent_before["warm"],
+                    "sent_cold": st.get("sent_cold", 0) - sent_before["cold"],
+                }
+            )
+        except (OSError, UnboundLocalError, NameError):
+            print("!! не удалось записать отчёт автопилота")
         save_state(st)
         try:
             os.remove(LOCK)

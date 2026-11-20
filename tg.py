@@ -107,7 +107,8 @@ def fmt_msg(m, short=300):
 
 
 async def cmd_dialogs(client, args):
-    dialogs = await client.get_dialogs(limit=50)
+    limit = None if args.limit == 0 else args.limit
+    dialogs = await client.get_dialogs(limit=limit)
     if not args.all:
         dialogs = [d for d in dialogs if not d.is_group and not d.is_channel]
     dialogs.sort(key=lambda d: (d.unread_count == 0, -(d.date.timestamp() if d.date else 0)))
@@ -121,9 +122,8 @@ async def cmd_dialogs(client, args):
             flags.append("канал")
         suffix = f" [{' '.join(flags)}]" if flags else ""
         last = ""
-        msgs = await client.get_messages(d.entity, limit=1)
-        if msgs:
-            last = " — " + fmt_msg(msgs[0], short=80)
+        if not args.no_last and d.message:
+            last = " — " + fmt_msg(d.message, short=80)
         print(f"id={d.id} {d.name!r}{suffix}{last}")
 
 
@@ -349,6 +349,26 @@ async def cmd_mark(client, args):
     print(f"OK, {name!r} отмечен прочитанным")
 
 
+async def cmd_archive(client, args):
+    if any(str(chat).strip() in {"me", "777000"} for chat in args.chat):
+        print("stop: cannot archive Saved Messages or Telegram service chat")
+        sys.exit(4)
+    dialogs = await client.get_dialogs(limit=None)
+    resolved = []
+    seen = set()
+    for chat in args.chat:
+        dialog = find_dialog(dialogs, chat)
+        if not dialog:
+            print(f"Чат {chat!r} не найден; ничего не архивировал")
+            sys.exit(3)
+        if dialog.id not in seen:
+            resolved.append((dialog.entity, dialog.name))
+            seen.add(dialog.id)
+    await client.edit_folder([item[0] for item in resolved], folder=1)
+    for _, name in resolved:
+        print(f"OK → {name!r}: archived")
+
+
 async def cmd_click(client, args):
     """Нажать inline-кнопку бота по точному тексту."""
     entity, name = await resolve_chat(client, args.chat)
@@ -378,9 +398,13 @@ def main():
 
     sp = sub.add_parser("dialogs")
     sp.add_argument("-a", "--all", action="store_true", help="включая группы и каналы")
+    sp.add_argument("--limit", type=int, default=50, help="число диалогов; 0 = все")
+    sp.add_argument("--no-last", action="store_true", help="не загружать последнее сообщение каждого чата")
     sp.set_defaults(fn=cmd_dialogs)
 
-    sub.add_parser("unread").set_defaults(fn=cmd_dialogs, all=False, unread_only=True)
+    sp = sub.add_parser("unread")
+    sp.add_argument("--limit", type=int, default=0, help="число диалогов; 0 = все")
+    sp.set_defaults(fn=cmd_dialogs, all=False, unread_only=True)
 
     sp = sub.add_parser("read")
     sp.add_argument("chat")
@@ -448,6 +472,10 @@ def main():
     sp.add_argument("chat")
     sp.set_defaults(fn=cmd_mark)
 
+    sp = sub.add_parser("archive")
+    sp.add_argument("chat", nargs="+")
+    sp.set_defaults(fn=cmd_archive)
+
     sp = sub.add_parser("click")
     sp.add_argument("chat")
     sp.add_argument("button", help="точный текст inline-кнопки")
@@ -462,9 +490,10 @@ def main():
         client = await get_client()
         try:
             if args.cmd in ("dialogs", "unread") and getattr(args, "unread_only", False):
+                limit = None if args.limit == 0 else args.limit
                 dialogs = [
                     d
-                    for d in await client.get_dialogs(limit=50)
+                    for d in await client.get_dialogs(limit=limit)
                     if not d.is_group
                     and not d.is_channel
                     and d.unread_count

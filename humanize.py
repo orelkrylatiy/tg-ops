@@ -9,16 +9,15 @@ job_search и канала telegram: фреймворк генерит текс�
                                   — карта текстов для новых лидов (+превью)
   py humanize.py @user            — один текст в stdout (быстро посмотреть)
 
-Сам ничего не отправляет. Дальше — просмотреть карту и отправить руками
-агента: py leads.py outreach --map outreach-humanize.json --resume resume.pdf
+Сам ничего не отправляет. Дальше — просмотреть карту и отправить через
+leads.py outreach; подходящее резюме выбирается из config.json.
 
 LLM: по умолчанию — цепочка фреймворка (OpenCode ChatGPT → GLM → OpenAI
 API, ключи в .env самого фреймворка). Явный HUMANIZER_PROVIDER
 (anthropic|glm|claude) переключает на локальный стек llm.env ниже
 (ANTHROPIC_AUTH_TOKEN → api.z.ai/api/anthropic, glm-5.3-flash, thinking
 выключен; ключи — env или llm.env, в git не попадает).
-Фреймворк — установленный пакет (editable): py -m pip install -e
-C:\\Users\\Maxim\\Desktop\\projects\\humanizer-framework
+Фреймворк должен быть установлен в активное Python-окружение.
 """
 
 import argparse
@@ -174,7 +173,7 @@ def _glm_chat(key, system, user, temperature, max_tokens):
 def _claude_chat(system, user, temperature, max_tokens):
     """Локальный claude CLI (ключи не нужны); temperature/max_tokens не хвостятся."""
     del temperature, max_tokens
-    exe = shutil.which("claude")  # в Windows это claude.cmd — нужен полный путь
+    exe = shutil.which("claude")
     if not exe:
         raise HumanizerError("claude CLI не найден в PATH")
     prompt = f"[SYSTEM]\n{system}\n\n[USER]\n{user}"
@@ -284,7 +283,11 @@ def _generation_label():
     if PROVIDER:
         return f"локальный стек {GLM_MODEL}"
     last = getattr(_chain_provider(), "last_model", None)
-    return f"цепочка фреймворка, фактически {last}" if last else "цепочка фреймворка (opencode → z.ai → openai-api)"
+    return (
+        f"цепочка фреймворка, фактически {last}"
+        if last
+        else "цепочка фреймворка (opencode → z.ai → openai-api)"
+    )
 
 
 # --- голос Макса (стиль по его реальным сообщениям + правила от 30.09) ---------
@@ -292,11 +295,15 @@ def _generation_label():
 PROFILE_FACTS = [
     "Максим — мужчина, о себе в мужском роде, «увидел(а)» запрещены",
     "frontend-разработчик: React/TypeScript, 5+ лет; в стеке также Next.js",
+    "рассматривает вакансии Frontend/React, Full-stack, React Native, ML и AI; выбирать резюме строго по вакансии",
     "сейчас делает высоконагруженный трейдинг-терминал: WebSocket, real-time, 10k+ трейдеров",
     "английский B2",
-    "зарплатные ожидания от $3000",
+    "для российских компаний Максим живёт в Москве; Алматы не упоминать",
+    "для российских компаний минимум по зарплате 150 000 рублей, верхняя граница 300 000; ожидания подбирать по грейду, задачам и вилке вакансии, не использовать 250 000 как фиксированный минимум",
+    "для компаний вне России зарплатные ожидания от $3000",
+    "комфортные языки общения — русский и английский; выбирать по контексту диалога",
     "цель — попасть на собеседование, готов созвониться в любое удобное время",
-    "резюме в первом сообщении не отправляется; Максим пришлёт сам, если вакансия актуальна",
+    "к первому сообщению прикладывается подходящее резюме из resume/; не обещать отдельную последующую отправку резюме",
 ]
 
 BUSINESS_RULES = [
@@ -309,7 +316,7 @@ BUSINESS_RULES = [
     " Разбираться в деталях Максим будет сам на созвоне, тексту это не обсуждать.",
     "Деньги и зарплатные ожидания в первом сообщении не называть.",
     "Без ссылок, телефонов, e-mail, лишних мессенджеров и эмодзи.",
-    "Пиши на языке поста вакансии (англоязычный пост — английский текст).",
+    "Пиши по-русски или по-английски, выбирая язык по языку вакансии и контексту диалога.",
     "Не пересказывать вакансию и не повторять то, что и так написано в посте.",
     "Текст должен быть личным под эту вакансию: два разных лида не получают одинаковый текст.",
 ]
@@ -518,9 +525,7 @@ async def cmd_humanize(client, args):
     rows = [
         r
         for r in store.values()
-        if r["type"] == "username"
-        and r["status"] == "new"
-        and r.get("post_kind", "job") == "job"
+        if r["type"] == "username" and r["status"] == "new" and r.get("post_kind", "job") == "job"
     ]
     if args.leads:  # явный список — но только ещё не тронутые
         want = {v.lower().lstrip("@") for v in args.leads}
@@ -573,7 +578,7 @@ async def cmd_humanize(client, args):
     with open(args.out, "w", encoding="utf-8") as fh:
         json.dump(texts, fh, ensure_ascii=False, indent=1)
     print(f"Карта текстов: {len(texts)} шт → {args.out}")
-    print(f"Отправка (после просмотра): py leads.py outreach --map {args.out} --resume resume.pdf")
+    print(f"Отправка (после просмотра): py leads.py outreach --map {args.out}")
 
 
 def main():

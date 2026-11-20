@@ -38,7 +38,7 @@ from datetime import UTC, datetime, timedelta
 
 from telethon.tl.types import User
 
-from ops_telemetry import record_event
+from admin.scan_reports import append_report
 from tgcommon import HERE, SERVICE_CHAT_IDS, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -112,12 +112,14 @@ VACANCY_RE = re.compile(
     re.IGNORECASE,
 )
 STACK_RE = re.compile(
-    r"frontend|фронтенд|фронтендер|react|next\.?js|typescript|\bts\b|"
-    r"javascript|\bjs\b|vue|nuxt|angular|full[ -]?stack|фулстек",
+    r"frontend|front[ -]?end|фронтенд|фронтендер|react(?:\s*native)?|next\.?js|typescript|\bts\b|"
+    r"javascript|\bjs\b|vue|nuxt|angular|full[ -]?stack|фулл?стек|node(?:\.js|js)?|"
+    r"machine[ -]?learning|\bml\b|машинн\w+ обуч|artificial intelligence|\bai\b|\bllm\b|"
+    r"generative ai|\bии\b|искусственн\w+ интеллект",
     re.IGNORECASE,
 )
 LOW_GRADE_RE = re.compile(
-    r"\bjunior\b|\bджун\w*|\bстаж[еёрк]*|intern(?:ship)?|trainee|"
+    r"\bстаж[еёрк]*|intern(?:ship)?|trainee|"
     r"part[ -]?time|неполн\w+\s+день|частичн\w+\s+занят",
     re.IGNORECASE,
 )
@@ -238,7 +240,7 @@ def classify_for_prescribe(text, msg_date, *, remote_only=True, now=None):
     if not STACK_RE.search(text):
         return "declined", "job", "нерелевантный стек"
     if LOW_GRADE_RE.search(text):
-        return "declined", "job", "junior/стажировка/part-time"
+        return "declined", "job", "стажировка/part-time"
     if RU_EXCLUDED_RE.search(text):
         return "declined", "job", "гео исключает РФ"
     if remote_only and OFFICE_RE.search(text) and not REMOTE_RE.search(text):
@@ -438,8 +440,6 @@ async def cmd_scan(client, args):
     targets = await _resolve_channels(client, tokens)
     print(f"Скан лидов: {len(targets)} каналов, до {args.limit} постов на канал…")
     total_new = 0
-    posts_scanned = 0
-    channels_scanned = 0
     for ent, name in targets:
         count = new = 0
         try:
@@ -462,25 +462,12 @@ async def cmd_scan(client, args):
                     username_only=not args.all_types,
                 )
         except Exception as e:
-            posts_scanned += count
-            channels_scanned += 1
-            record_event(
-                "operation_failed", operation="lead_scan_channel",
-                error_type=type(e).__name__, chat_name=name, source="leads.py"
-            )
             print(f"!! {name!r}: {e}")
             continue
-        posts_scanned += count
-        channels_scanned += 1
         total_new += new
         print(f"  {name!r}: постов {count}, новых лидов {new}")
     flush()
     print(f"Итого новых лидов: {total_new} → {os.path.relpath(LEADS_JSONL, HERE)}")
-    record_event(
-        "scan_completed", scan_type="leads", profile=args.profile or "active",
-        channels_scanned=channels_scanned, posts_scanned=posts_scanned,
-        leads_found=total_new, source="leads.py"
-    )
 
 
 async def cmd_prescribe(client, args):
@@ -510,8 +497,6 @@ async def cmd_prescribe(client, args):
             record["post_kind"] = "review"
             record["note"] = "автопрописка: повторная проверка после отмены фильтра цены"
     stats = {"new": 0, "queued": 0, "declined": 0, "review": 0, "existing": 0}
-    posts_scanned = 0
-    channels_scanned = 0
     ready = []
     admitted = []
     queued = []
@@ -532,6 +517,8 @@ async def cmd_prescribe(client, args):
     )
     daily_remaining = max(0, args.daily_new_limit - admitted_today)
     candidates = []
+    channels_scanned = 0
+    posts_scanned = 0
     print(
         f"Автопрописка: {len(targets)} каналов, окно 30 дней, "
         f"до {args.limit} постов на канал, новых Telegram HR сегодня "
@@ -547,6 +534,7 @@ async def cmd_prescribe(client, args):
                 if not text:
                     continue
                 scanned += 1
+                posts_scanned += 1
                 contacts, marked = _contact_leads(text, getattr(ent, "username", "") or "")
                 if not contacts:
                     continue
@@ -626,15 +614,8 @@ async def cmd_prescribe(client, args):
                     elif bucket == "review":
                         review.append(record)
         except Exception as e:
-            posts_scanned += scanned
-            channels_scanned += 1
-            record_event(
-                "operation_failed", operation="lead_prescribe_channel",
-                error_type=type(e).__name__, chat_name=name, source="leads.py"
-            )
             print(f"!! {name!r}: {e}")
             continue
-        posts_scanned += scanned
         channels_scanned += 1
         print(f"  {name!r}: свежих постов {scanned}")
 
@@ -771,14 +752,34 @@ async def cmd_prescribe(client, args):
             "review_count": len(review),
             "daily_limit": args.daily_new_limit,
             "already_admitted_today": admitted_today,
+            "profile": profile_name,
+            "channels_scanned": channels_scanned,
+            "channels_total": len(targets),
+            "posts_scanned": posts_scanned,
+            "window_days": 30,
+            "counts": stats,
         },
     )
-    record_event(
-        "scan_completed", scan_type="prescribe", profile=profile_name,
-        channels_scanned=channels_scanned, posts_scanned=posts_scanned,
-        leads_found=len(seen_this_run), ready_leads=len(admitted),
-        queued_leads=len(queued), review_leads=len(review), source="leads.py"
-    )
+    try:
+        append_report(
+            {
+                "kind": "lead_scan",
+                "source": "telegram",
+                "profile": profile_name,
+                "window_days": 30,
+                "post_limit_per_channel": args.limit,
+                "channels_scanned": channels_scanned,
+                "channels_total": len(targets),
+                "posts_scanned": posts_scanned,
+                "ready": stats["new"],
+                "queued": stats["queued"],
+                "review": stats["review"],
+                "declined": stats["declined"],
+                "existing": stats["existing"],
+            }
+        )
+    except OSError as e:
+        print(f"!! не удалось записать отчёт HR-скана: {type(e).__name__}")
 
 
 def cmd_show(client, args):  # client не нужен: база локальная
@@ -859,6 +860,24 @@ async def cmd_post(client, args):
     print(m.text)
 
 
+def select_resume_for_lead(record, policy, explicit=None, disabled=False):
+    if disabled:
+        return None
+    if explicit:
+        return os.path.abspath(explicit)
+    if not policy.get("auto_attach", False):
+        return None
+    text = record.get("snippet") or ""
+    for rule in policy.get("rules", []):
+        if any(re.search(pattern, text, re.IGNORECASE) for pattern in rule.get("patterns", [])):
+            return os.path.join(HERE, rule["file"])
+    cyrillic = len(re.findall(r"[а-яё]", text, re.IGNORECASE))
+    language = "ru" if cyrillic else "en"
+    defaults = policy.get("default_by_language", {})
+    relpath = defaults.get(language) or defaults.get("ru")
+    return os.path.join(HERE, relpath) if relpath else None
+
+
 async def cmd_outreach(client, args):
     # texts — индивидуальный текст на каждого: {@value: текст}; задаю их я (агент),
     # сочиняя под контекст конкретного лида. Никаких общих шаблонов.
@@ -871,6 +890,9 @@ async def cmd_outreach(client, args):
         print('Нужен текст: --text "...", --text-file msg.txt или --map texts.json')
         sys.exit(3)
 
+    if args.resume and args.no_resume:
+        print("Нельзя одновременно указать --resume и --no-resume")
+        sys.exit(3)
     if args.resume and not os.path.exists(args.resume):
         print(f"Резюме не найдено: {args.resume}")
         sys.exit(3)
@@ -918,8 +940,24 @@ async def cmd_outreach(client, args):
         print("Новых лидов-юзернеймов нет (show --type username --status new)")
         return
 
+    config_path = os.path.join(HERE, "config.json")
+    with open(config_path, encoding="utf-8") as fh:
+        resume_policy = json.load(fh).get("resume_selection", {})
+
+    selected_resumes = {
+        r["value"]: select_resume_for_lead(r, resume_policy, args.resume, args.no_resume)
+        for r in targets
+    }
+    missing = sorted({path for path in selected_resumes.values() if path and not os.path.isfile(path)})
+    if missing:
+        print("Не найдены файлы резюме: " + ", ".join(missing))
+        sys.exit(3)
+
     mode = "DRY-RUN (ничего не отправляем)" if args.dry_run else f"ОТПРАВКА (лимит {args.limit})"
-    print(f"Outreach {mode}: {len(targets)} получателей; резюме: {args.resume or '—'}\n")
+    print(
+        f"Outreach {mode}: {len(targets)} получателей; авто-резюме: "
+        f"{bool(resume_policy.get('auto_attach')) and not args.no_resume and not args.resume}\n"
+    )
     sent = 0
     stopped_reason = None
     for i, r in enumerate(targets):
@@ -931,6 +969,9 @@ async def cmd_outreach(client, args):
         )
         print(f"--- {r['value']} (из {r['source_channel']}, {r['source_date']})")
         print(f"    {body[:120]}")
+        resume_path = selected_resumes[r["value"]]
+        if resume_path:
+            print(f"    резюме: {os.path.relpath(resume_path, HERE)}")
         if args.dry_run:
             print("    [dry-run] пропущено")
             continue
@@ -947,23 +988,22 @@ async def cmd_outreach(client, args):
                 save_store(store)
                 print(f"    !! тред уже есть ({who}, от {last.date:%d.%m}) → пропуск")
                 continue
-            await client.send_message(ent, body)
-            record_event(
-                "message_sent", category="cold_outreach", message_type="new",
-                chat_id=ent.id, chat_name=r["value"], source="leads.py"
-            )
-            if args.resume:
-                await client.send_file(ent, args.resume, caption="")
-                record_event(
-                    "resume_sent", chat_id=ent.id, chat_name=r["value"],
-                    file_name=os.path.basename(args.resume), source="leads.py"
-                )
+            if resume_path:
+                if len(body) <= 1024:
+                    await client.send_file(ent, resume_path, caption=body, parse_mode=None)
+                else:
+                    await client.send_message(ent, body)
+                    await client.send_file(ent, resume_path, caption="")
+            else:
+                await client.send_message(ent, body)
             r["status"] = "contacted"
             r["contacted_at"] = _now_iso()
-            r["note"] = "outreach" + (" +resume" if args.resume else "")
+            r["note"] = "outreach" + (
+                f" +{os.path.basename(resume_path)}" if resume_path else ""
+            )
             save_store(store)  # сразу: обрыв после 3-го не приведёт к повтору первых
             sent += 1
-            print("    OK, отправлено" + (" + резюме" if args.resume else ""))
+            print("    OK, отправлено" + (" + резюме" if resume_path else ""))
         except Exception as e:
             if "no user has" in str(e).lower():
                 # мёртвый юзернейм — вина лида, не сети: помечаем и идём дальше
@@ -982,11 +1022,6 @@ async def cmd_outreach(client, args):
             err = str(e).lower()
             stopped_reason = (
                 "spam" if "spam" in err else "flood" if "flood" in err else type(e).__name__
-            )
-            record_event(
-                "operation_failed", operation="cold_outreach",
-                error_type=type(e).__name__, reason=stopped_reason,
-                chat_name=r["value"], source="leads.py"
             )
             print(f"    !! не отправлено ({stopped_reason}): {e}")
             break  # FloodWait/сеть — дальше не долбим, продолжится со следующего запуска
@@ -1317,10 +1352,6 @@ async def cmd_followups(client, args):
             # Догонка отправляется после нашего сообщения и не имеет
             # естественного входящего сообщения для Reply.
             await client.send_message(ent, text)
-            record_event(
-                "message_sent", category="followup", message_type="followup",
-                chat_id=ent.id, chat_name=value, source="leads.py"
-            )
         except Exception as e:
             err = str(e).lower()
             if "no user has" in err:
@@ -1473,10 +1504,6 @@ async def cmd_warm_due(client, args):
             ent = await client.get_entity(value.lstrip("@"))
             # Тёплый возврат продолжает тред: отвечаем на последнее сообщение HR.
             await client.send_message(ent, text, reply_to=v2.get("their_last_id"))
-            record_event(
-                "message_sent", category="warm_return", message_type="reply",
-                chat_id=ent.id, chat_name=value, source="leads.py"
-            )
         except Exception as e:
             err = str(e).lower()
             if "no user has" in err:
@@ -1580,6 +1607,9 @@ def main():
         help="JSON {@лид: текст} — индивидуальный текст каждому (предпочтительный режим)",
     )
     sp.add_argument("--resume", default=None, help="путь к PDF резюме (приложить)")
+    sp.add_argument(
+        "--no-resume", action="store_true", help="не прикладывать авто-резюме из config.json"
+    )
     sp.add_argument("--limit", type=int, default=5, help="макс. получателей за прогон")
     sp.add_argument("--include", nargs="*", default=None, help="точечно: значения лидов")
     sp.add_argument("--dry-run", action="store_true", help="показать план, не отправлять")

@@ -1,11 +1,67 @@
 {
   "active_profile": "react",
   "out_dir": "vacancies",
+  "resume_selection": {
+    "auto_attach": true,
+    "default_by_language": {
+      "ru": "resume/resume-react.pdf",
+      "en": "resume/resume-react-en.pdf"
+    },
+    "rules": [
+      {
+        "patterns": [
+          "react\\s*native",
+          "react-native",
+          "reactnative"
+        ],
+        "file": "resume/resume-react-native.pdf"
+      },
+      {
+        "patterns": [
+          "machine[ -]?learning",
+          "\\bml\\b",
+          "машинн\\w+ обуч"
+        ],
+        "file": "resume/resume-ml.pdf"
+      },
+      {
+        "patterns": [
+          "artificial intelligence",
+          "\\bai\\b",
+          "\\bllm\\b",
+          "generative ai",
+          "\\bии\\b",
+          "искусственн\\w+ интеллект"
+        ],
+        "file": "resume/resume-ai.pdf"
+      },
+      {
+        "patterns": [
+          "full[ -]?stack",
+          "фулл?стек"
+        ],
+        "file": "resume/resume-fullstack.pdf"
+      },
+      {
+        "patterns": [
+          "\\bvue\\b",
+          "\\bnuxt\\b"
+        ],
+        "file": "resume/resume-vue.pdf"
+      },
+      {
+        "patterns": [
+          "\\bnode(?:\\.js|js)\\b"
+        ],
+        "file": "resume/resume-nodejs.pdf"
+      }
+    ]
+  },
   "profiles": {
     "react": {
-      "title": "React/TS frontend, ≥300к, RU+remote. Фронтенд-каналы, без чисто-backend и общих IT",
+      "title": "React/TS frontend, RU+remote. Фронтенд-каналы, без чисто-backend и общих IT",
       "days": 3,
-      "min_salary": 300,
+      "min_salary": 0,
       "limit": 50,
       "remote_only": true,
       "channels": [
@@ -32,7 +88,7 @@
     "all": {
       "title": "Все вакансионные подписки (включая Node.js и общие IT) — эвристика по имени канала",
       "days": 3,
-      "min_salary": 300,
+      "min_salary": 0,
       "limit": 50,
       "channels": []
     },
@@ -63,5 +119,19 @@
         "-1001782596777"
       ]
     }
+  },
+  "auto_reply": {
+    "enabled": true,
+    "active_lead_statuses": [
+      "contacted",
+      "replied",
+      "warm"
+    ],
+    "catch_up_hours": 24,
+    "always_escalate_patterns": [
+      "\\b(?:offer|оффер)\\b|предложени[ея] о работе|готовы сделать оффер",
+      "\\b(?:contract|договор|контракт)\\b|условия оформления|подписать договор|employment terms",
+      "паспорт|дата рождения|день рождения|адрес регистрации|адрес проживания|\\bИНН\\b|\\bСНИЛС\\b|реквизиты|персональн\\w+ данн|военный билет|\\bpassport\\b|date of birth|home address|bank details"
+    ]
   }
 }

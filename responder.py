@@ -1,6 +1,6 @@
 """Автоответчик HR (tg-hr): следит за личкой, отвечает эйчарам по базе знаний
 answers.json — ТОЛЬКО по данным, которые туда положили; чего нет в базе —
-эскалирует Максу: тост + сообщение в TG-бота. Ответ эйчару — Reply-ем на
+эскалирует Максу в TG-бота. Ответ эйчару — Reply-ем на
 сообщение эскалации в боте, мост уходит в ближайшем цикле.
 
 Правила:
@@ -19,8 +19,8 @@ disconnect), tg.py влезает между циклами. watcher.py при �
 НЕ запускать (двойная очередь inbox.jsonl); задача tg-hr-watcher выключена.
 
 Бот: токен и свой chat_id — в hr.env (TG_BOT_TOKEN, HR_OPS_CHAT_ID).
-Бот сам запомнит chat_id: напиши ему /start. Без токена работает в режиме тостов:
-эскалации видны как уведомления Windows + копятся в escalations.jsonl.
+Бот сам запомнит chat_id: напиши ему /start. Эскалации сохраняются в
+escalations.jsonl; при настроенном боте они также отправляются в служебный чат.
 """
 
 import argparse
@@ -29,7 +29,6 @@ import json
 import os
 import random
 import re
-import subprocess
 import sys
 import threading
 import time
@@ -39,7 +38,6 @@ from datetime import UTC, datetime, timedelta
 
 from telethon.tl.types import PeerUser, User
 
-from ops_telemetry import record_event
 from tgcommon import HERE, SERVICE_CHAT_IDS, connect_any
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -53,6 +51,8 @@ ESCAL = os.path.join(HERE, "escalations.jsonl")
 OUTBOX = os.path.join(HERE, "responder-outbox.jsonl")
 SENTLOG = os.path.join(HERE, "responded.jsonl")
 HRENVP = os.path.join(HERE, "hr.env")
+CONFIG_PATH = os.path.join(HERE, "config.json")
+LEADS_PATH = os.path.join(HERE, "leads", "leads.jsonl")
 
 LOOP_SEC = 60  # период основного цикла
 SLA_SEC = 600  # максимум до ответа (10 минут)
@@ -80,6 +80,78 @@ def append_line(path, obj):
         fh.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 
+def load_active_hr_leads(statuses):
+    leads = {}
+    if not os.path.exists(LEADS_PATH):
+        return leads
+    with open(LEADS_PATH, encoding="utf-8") as fh:
+        for line in fh:
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if (
+                record.get("type") == "username"
+                and record.get("status") in statuses
+                and record.get("post_kind", "job") == "job"
+            ):
+                username = str(record.get("value") or "").lstrip("@").lower()
+                if username:
+                    leads[username] = record
+    return leads
+
+
+def escalation_reason(text, patterns):
+    for pattern in patterns:
+        if re.search(pattern, text or "", re.IGNORECASE):
+            return f"always_escalate: /{pattern}/"
+    return None
+
+
+def ordered_conversation(messages):
+    conversation = [
+        {
+            "role": "assistant" if message.out else "user",
+            "content": (message.message or "").strip()[:4000],
+        }
+        for message in sorted(messages, key=lambda item: item.id)
+        if (message.message or "").strip()
+    ]
+    return conversation[-12:]
+
+
+def generate_humanized_reply(messages, lead):
+    from humanize_reply import generate_reply
+
+    conversation = ordered_conversation(messages)
+    if not conversation or conversation[-1]["role"] != "user":
+        raise RuntimeError("последнее сообщение в треде не входящее")
+    goal = (
+        "Ответь на последнюю реплику рекрутера уверенно и по существу. "
+        "Цель — продвинуться к собеседованию. Используй контекст вакансии и известные факты; "
+        "не занижай шансы и не добавляй самоограничений. Если факта действительно не хватает, "
+        "не выдумывай его, задай один короткий уточняющий вопрос."
+    )
+    last_error = None
+    for _ in range(3):
+        try:
+            result = generate_reply(
+                [],
+                [],
+                goal,
+                conversation=conversation,
+                recipient=lead.get("snippet") if lead else None,
+            )
+            hard_issues = [issue.code for issue in result.issues if issue.hard]
+            text = (result.text or "").strip()
+            if text and not hard_issues:
+                return text
+            last_error = f"валидация: {', '.join(hard_issues) or 'пустой текст'}"
+        except Exception as exc:
+            last_error = type(exc).__name__
+    raise RuntimeError(last_error or "humanizer не подготовил ответ")
+
+
 def load_hr_env():
     env = {}
     if os.path.exists(HRENVP):
@@ -90,18 +162,6 @@ def load_hr_env():
                     k, v = line.split("=", 1)
                     env[k.strip()] = v.strip()
     return env
-
-
-def toast(title, text):
-    ps = os.path.join(HERE, "notify.ps1")
-    try:
-        subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps, title, text],
-            timeout=20,
-            capture_output=True,
-        )
-    except Exception as e:
-        print(f"toast failed: {type(e).__name__}")
 
 
 # --- база знаний --------------------------------------------------------------
@@ -212,7 +272,6 @@ def escalate(name, chat_id, text, reason):
             "text": text,
         },
     )
-    toast(f"⚡ tg-hr: {name}", (text or "")[:120])
     env = load_hr_env()
     token, ops = env.get("TG_BOT_TOKEN"), env.get("HR_OPS_CHAT_ID")
     if token and ops:
@@ -238,11 +297,17 @@ def iso(dt):
 async def once():
     kb = load_json(KB_PATH, {"entries": [], "always_escalate": []})
     arms = load_json(ARMS_PATH, {"auto_chats": []})
+    auto_config = load_json(CONFIG_PATH, {}).get("auto_reply", {})
+    auto_enabled = bool(auto_config.get("enabled"))
+    active_statuses = set(auto_config.get("active_lead_statuses", ["contacted", "replied", "warm"]))
+    active_leads = load_active_hr_leads(active_statuses) if auto_enabled else {}
+    auto_escalate_patterns = auto_config.get("always_escalate_patterns", [])
     state = load_json(STATE_PATH, {})
     last = state.setdefault("last", {})
     pending = state.setdefault("pending", [])
+    auto_handled = state.setdefault("auto_handled", {})
     now = datetime.now(UTC)
-    # ручные треды (AGENTS.md §7): движок сюда не пишет, только тосты/лог
+    # Ручные треды не обрабатываются автоматикой.
     manual_ids = {
         int(t["id"]) for t in load_json(MANUAL_PATH, {}).get("threads", []) if t.get("id")
     }
@@ -265,7 +330,21 @@ async def once():
             fresh = [
                 m for m in msgs if m.message and not m.out and m.date.replace(tzinfo=UTC) > cutoff
             ]
-            if not fresh:
+            latest_message = max(msgs, key=lambda message: message.id) if msgs else None
+            catch_up_hours = max(0, int(auto_config.get("catch_up_hours", 0)))
+            catch_up = (
+                not fresh
+                and auto_enabled
+                and latest_message is not None
+                and latest_message.message
+                and not latest_message.out
+                and latest_message.id > int(auto_handled.get(str(d.id), 0))
+                and latest_message.date.replace(tzinfo=UTC)
+                >= now - timedelta(hours=catch_up_hours)
+                and not any(p["chat_id"] == d.id for p in pending)
+            )
+            incoming_to_handle = fresh or ([latest_message] if catch_up else [])
+            if not incoming_to_handle:
                 continue
             for m in fresh:
                 append_line(
@@ -279,23 +358,43 @@ async def once():
                         "src": "responder",
                     },
                 )
-                record_event(
-                    "inbound_message", category="incoming", chat_id=d.id,
-                    chat_name=d.name, source="responder"
-                )
-            toast(f"💬 {d.name}", fresh[-1].message[:120])
-            last[str(d.id)] = iso(fresh[-1].date)
+            latest_incoming = max(incoming_to_handle, key=lambda message: message.id)
+            if fresh:
+                last[str(d.id)] = iso(latest_incoming.date)
+            if latest_message is not None and latest_message.out and latest_message.id > latest_incoming.id:
+                if auto_enabled:
+                    auto_handled[str(d.id)] = latest_incoming.id
+                continue
 
-            if d.id not in arms.get("auto_chats", []) or d.id in manual_ids:
+            if d.id in manual_ids:
                 continue
-            # 2) автоответ по базе — если чат «armed»
-            text_in = fresh[-1].message
-            reply, reason = kb_match(kb, text_in)
-            if reply is None:
-                escalate(d.name, d.id, text_in, reason)
+            text_in = latest_incoming.message
+            username = str(getattr(d.entity, "username", "") or "").lower()
+            lead = active_leads.get(username) if auto_enabled else None
+            if auto_enabled and not lead:
                 continue
-            delay = random.uniform(DELAY_MIN, DELAY_MAX)
-            due = now + timedelta(seconds=delay)
+            if not auto_enabled and d.id not in arms.get("auto_chats", []):
+                continue
+            if auto_enabled:
+                reason = escalation_reason(
+                    "\n".join(m.message or "" for m in fresh), auto_escalate_patterns
+                )
+                if reason:
+                    escalate(d.name, d.id, text_in, reason)
+                    auto_handled[str(d.id)] = latest_incoming.id
+                    continue
+                try:
+                    reply = await asyncio.to_thread(generate_humanized_reply, msgs, lead)
+                except Exception as exc:
+                    escalate(d.name, d.id, text_in, f"humanizer: {type(exc).__name__}")
+                    auto_handled[str(d.id)] = latest_incoming.id
+                    continue
+            else:
+                reply, reason = kb_match(kb, text_in)
+                if reply is None:
+                    escalate(d.name, d.id, text_in, reason)
+                    continue
+            due = datetime.now(UTC) + timedelta(seconds=random.uniform(DELAY_MIN, DELAY_MAX))
             pending[:] = [p for p in pending if p["chat_id"] != d.id]
             pending.append(
                 {
@@ -304,6 +403,8 @@ async def once():
                     "text": reply,
                     "send_at": iso(due),
                     "seen_msg_id": max(m.id for m in fresh),
+                    "src": "humanizer" if auto_enabled else "kb",
+                    "username": username,
                 }
             )
             print(f"план: {d.name} в {due.strftime('%H:%M')}Z")
@@ -319,12 +420,6 @@ async def once():
                         PeerUser(item["chat_id"])
                     )
                     await client.send_message(ent, item["text"])
-                    record_event(
-                        "message_sent", category="manual_bridge", message_type="reply",
-                        chat_id=item["chat_id"],
-                        chat_name=getattr(ent, "first_name", None) or str(item["chat_id"]),
-                        source="responder"
-                    )
                     append_line(
                         SENTLOG,
                         {
@@ -353,24 +448,43 @@ async def once():
             msgs = await client.get_messages(ent, limit=MSG_LIMIT)
             newer = [m for m in msgs if m.message and not m.out and m.id > p["seen_msg_id"]]
             if newer:
-                # эйчар дописал — пересобираем ответ
-                reply, reason = kb_match(kb, newer[-1].message)
-                if reply is None:
-                    escalate(p["name"], p["chat_id"], newer[-1].message, "дописал: " + reason)
-                    continue
+                # Эйчар дописал — пересобираем ответ тем же режимом.
+                if p.get("src") == "humanizer":
+                    reason = escalation_reason(
+                        "\n".join(m.message or "" for m in newer), auto_escalate_patterns
+                    )
+                    lead = active_leads.get(str(p.get("username") or "").lower())
+                    if not auto_enabled or not lead or p["chat_id"] in manual_ids:
+                        continue
+                    if reason:
+                        escalate(p["name"], p["chat_id"], newer[-1].message, "дописал: " + reason)
+                        continue
+                    try:
+                        reply = await asyncio.to_thread(generate_humanized_reply, msgs, lead)
+                    except Exception as exc:
+                        escalate(
+                            p["name"], p["chat_id"], newer[-1].message,
+                            f"дописал: humanizer {type(exc).__name__}",
+                        )
+                        continue
+                else:
+                    reply, reason = kb_match(kb, newer[-1].message)
+                    if reply is None:
+                        escalate(p["name"], p["chat_id"], newer[-1].message, "дописал: " + reason)
+                        continue
                 p["text"] = reply
                 p["seen_msg_id"] = max(m.id for m in newer)
                 p["send_at"] = iso(datetime.now(UTC) + timedelta(seconds=random.uniform(45, 120)))
                 still.append(p)
                 print(f"пересборка: {p['name']}")
                 continue
+            latest_message = max(msgs, key=lambda message: message.id) if msgs else None
+            if latest_message is not None and latest_message.out and latest_message.id > p["seen_msg_id"]:
+                print(f"отмена: {p['name']} ответил сам")
+                continue
             # Автоответ продолжает входящее сообщение, на которое он был
             # запланирован. Для обычных новых касаний responder не используется.
             await client.send_message(ent, p["text"], reply_to=p.get("seen_msg_id"))
-            record_event(
-                "message_sent", category="auto_reply", message_type="reply",
-                chat_id=p["chat_id"], chat_name=p["name"], source="responder"
-            )
             append_line(
                 SENTLOG,
                 {
@@ -378,9 +492,11 @@ async def once():
                     "chat_id": p["chat_id"],
                     "name": p["name"],
                     "text": p["text"],
-                    "src": "kb",
+                    "src": p.get("src", "kb"),
                 },
             )
+            if p.get("src") == "humanizer":
+                auto_handled[str(p["chat_id"])] = p["seen_msg_id"]
             print(f"автоответ: {p['name']}")
         state["pending"] = still
 
@@ -401,7 +517,7 @@ def main():
     threading.Thread(target=bot_thread, daemon=True).start()
     print(
         f"responder: цикл {LOOP_SEC}s, sla {SLA_SEC}s; bot "
-        f"{'вкл' if load_hr_env().get('TG_BOT_TOKEN') else 'ВЫКЛ (только тосты)'}"
+        f"{'вкл' if load_hr_env().get('TG_BOT_TOKEN') else 'ВЫКЛ'}"
     )
     while True:
         try:

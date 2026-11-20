@@ -76,7 +76,8 @@ py leads.py set @user contacted "ответил"                             # �
 py leads.py post @user                       # полный текст вакансии-источника лида
 py humanize.py [-n 5] [--leads @a @b]        # карта персональных текстов (humanizer-framework)
 py humanize.py @user                         # один текст в stdout, быстро посмотреть
-py leads.py outreach --map texts.json --resume resume.pdf             # свой текст каждому (сначала --dry-run)
+py leads.py outreach --map texts.json --dry-run                       # dry-run; резюме подберётся из config.json
+py leads.py outreach --map texts.json                                 # отправка с резюме по роли и языку
 ```
 
 `humanize.py` — тот же humanizer-framework, что в profi-worker (домен job_search,

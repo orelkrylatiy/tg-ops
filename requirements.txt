@@ -1,5 +1,6 @@
 # Зависимости tg-ops. Установка: py -m pip install -r requirements.txt
 telethon>=1.36
+python-socks[asyncio]>=3.2.2,<4
 
 # Движок текстов — соседнее репо, editable-ссылка (pip не копирует код, а
 # прописывает путь в site-packages; при переезде папки — переустановить).
