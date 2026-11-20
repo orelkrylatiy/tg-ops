@@ -3,525 +3,1034 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0d1118">
-  <title>TG Ops — Admin</title>
+  <meta name="theme-color" content="#f5f7f6">
+  <title>TG Ops · Control Center</title>
   <style>
     :root {
-      color-scheme: dark;
-      --bg: #0d1118;
-      --panel: #151c26;
-      --panel-2: #192230;
-      --border: #263244;
-      --text: #edf2f8;
-      --muted: #8d9bad;
-      --accent: #a7e36b;
-      --blue: #78a9ff;
-      --purple: #b39aff;
-      --red: #ff7d86;
-      --amber: #f2c46d;
-      --radius: 16px;
+      color-scheme: light;
+      --bg: #f5f7f6;
+      --surface: #ffffff;
+      --surface-soft: #f8faf9;
+      --text: #18211d;
+      --muted: #78857e;
+      --line: #e7ece9;
+      --line-strong: #dbe3de;
+      --accent: #23865b;
+      --accent-soft: #e9f5ee;
+      --blue: #4678c8;
+      --blue-soft: #edf3fc;
+      --violet: #7c67bb;
+      --violet-soft: #f1eef9;
+      --amber: #b17a24;
+      --amber-soft: #fbf4e8;
+      --red: #c45656;
+      --red-soft: #fbefef;
+      --shadow: 0 8px 30px rgba(30, 50, 39, .045);
+      --radius: 15px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
-      background:
-        radial-gradient(ellipse at 8% 0%, rgba(120,169,255,.08), transparent 32rem),
-        radial-gradient(ellipse at 90% 0%, rgba(167,227,107,.06), transparent 28rem),
-        var(--bg);
+      background: var(--bg);
       color: var(--text);
       font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-    button, select { font: inherit; }
-    .shell { max-width: 1440px; margin: 0 auto; padding: 30px 34px 48px; }
-    header {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 24px; margin-bottom: 28px;
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 236px minmax(0,1fr); }
+    .sidebar {
+      position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column;
+      padding: 23px 15px 18px; background: var(--surface); border-right: 1px solid var(--line);
     }
-    .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 0 10px 27px; }
     .brand-mark {
-      display: grid; place-items: center; width: 42px; height: 42px;
-      border: 1px solid rgba(167,227,107,.35); border-radius: 13px;
-      background: rgba(167,227,107,.1); color: var(--accent);
-      font-size: 14px; font-weight: 800; letter-spacing: -.06em;
+      width: 37px; height: 37px; display: grid; place-items: center; border-radius: 11px;
+      background: var(--accent); color: white; font-weight: 800; font-size: 12px; letter-spacing: -.04em;
     }
-    h1 { margin: 0; font-size: 20px; letter-spacing: -.035em; font-weight: 720; }
-    .subtitle { color: var(--muted); font-size: 12px; margin-top: 2px; }
-    .header-right { display: flex; align-items: center; gap: 12px; }
-    .status-pill {
-      display: inline-flex; align-items: center; gap: 8px; color: var(--muted);
-      border: 1px solid var(--border); background: rgba(21,28,38,.72);
-      border-radius: 999px; padding: 8px 12px; font-size: 12px;
+    .brand-name { font-size: 15px; font-weight: 760; letter-spacing: -.035em; }
+    .brand-caption { color: var(--muted); font-size: 10px; margin-top: 1px; letter-spacing: .03em; }
+    .nav-label { padding: 0 11px 9px; color: #a0aaa4; font-size: 10px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+    .nav { display: grid; gap: 4px; }
+    .nav-button {
+      display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 11px;
+      color: #69766f; border: 0; border-radius: 10px; background: transparent; text-align: left;
+      font-size: 12px; font-weight: 600; transition: .15s ease;
     }
-    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px rgba(167,227,107,.55); }
+    .nav-button:hover { color: var(--text); background: var(--surface-soft); }
+    .nav-button.active { color: var(--accent); background: var(--accent-soft); }
+    .nav-icon { width: 17px; height: 17px; display: grid; place-items: center; font-size: 15px; }
+    .nav-count { margin-left: auto; min-width: 20px; text-align: center; border-radius: 20px; padding: 1px 6px; background: #edf1ee; color: #68766e; font-size: 10px; }
+    .sidebar-bottom { margin-top: auto; padding: 14px 10px 0; border-top: 1px solid var(--line); }
+    .local-tag { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
+    .local-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+    .sidebar-foot { color: #a1aaa5; font-size: 10px; margin-top: 8px; line-height: 1.55; }
+    .main { min-width: 0; padding: 0 32px 42px; }
+    .topbar {
+      min-height: 82px; display: flex; align-items: center; justify-content: space-between;
+      gap: 20px; border-bottom: 1px solid var(--line); margin-bottom: 25px;
+    }
+    .page-heading h1 { margin: 0; font-size: 20px; font-weight: 730; letter-spacing: -.045em; }
+    .page-heading p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+    .top-actions { display: flex; align-items: center; gap: 9px; }
+    .top-status { display: inline-flex; align-items: center; gap: 7px; color: #637168; font-size: 11px; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+    .select, .input, .textarea {
+      width: 100%; color: var(--text); background: var(--surface); border: 1px solid var(--line-strong);
+      border-radius: 9px; padding: 9px 11px; outline: none; transition: border-color .15s, box-shadow .15s;
+    }
+    .select:focus, .input:focus, .textarea:focus { border-color: #8ab99e; box-shadow: 0 0 0 3px rgba(35,134,91,.08); }
+    .select { width: auto; min-width: 145px; font-size: 11px; }
+    .input, .textarea { font-size: 12px; }
+    .textarea { resize: vertical; min-height: 78px; line-height: 1.55; }
     .button {
-      cursor: pointer; border: 1px solid var(--border); border-radius: 10px;
-      background: var(--panel-2); color: var(--text); padding: 9px 13px;
-      transition: border-color .15s, transform .15s;
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      border: 1px solid var(--line-strong); border-radius: 9px; padding: 9px 12px;
+      color: #405047; background: var(--surface); font-size: 11px; font-weight: 650;
+      transition: .15s ease; white-space: nowrap;
     }
-    .button:hover { border-color: #52657f; transform: translateY(-1px); }
-    .button:disabled { opacity: .55; cursor: wait; transform: none; }
-    .toolbar {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 16px; margin-bottom: 18px;
-    }
-    .section-kicker { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-    .filters { display: flex; gap: 9px; }
-    select {
-      color: var(--text); background: var(--panel); border: 1px solid var(--border);
-      border-radius: 10px; padding: 9px 34px 9px 12px; outline: none;
-    }
-    select:focus, .button:focus-visible { border-color: var(--accent); outline: 2px solid rgba(167,227,107,.14); }
-    .grid { display: grid; gap: 14px; }
-    .stats { grid-template-columns: repeat(6, minmax(0, 1fr)); margin-bottom: 14px; }
+    .button:hover { border-color: #b8c9be; background: #fbfdfb; }
+    .button.primary { color: white; background: var(--accent); border-color: var(--accent); }
+    .button.primary:hover { background: #1d744e; }
+    .button.danger { color: var(--red); background: var(--red-soft); border-color: #f0d9d9; }
+    .button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+    .button:disabled { opacity: .48; cursor: wait; }
+    .page { display: none; }
+    .page.active { display: block; }
+    .page-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 17px; }
+    .eyebrow { color: #8b9790; font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    .toolbar-note { color: var(--muted); font-size: 11px; }
+    .grid { display: grid; gap: 13px; }
+    .kpis { grid-template-columns: repeat(4, minmax(0,1fr)); margin-bottom: 13px; }
     .card {
-      min-width: 0; background: linear-gradient(145deg, rgba(25,34,48,.96), rgba(19,26,37,.96));
-      border: 1px solid var(--border); border-radius: var(--radius);
-      box-shadow: 0 12px 35px rgba(0,0,0,.12);
+      min-width: 0; background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); box-shadow: var(--shadow);
     }
-    .stat { padding: 17px 18px 16px; min-height: 126px; }
-    .stat-label { color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 8px; }
-    .stat-value { font-size: clamp(25px, 2.3vw, 34px); line-height: 1.2; letter-spacing: -.055em; font-weight: 730; margin: 13px 0 5px; }
-    .stat-foot { color: #738196; font-size: 11px; }
-    .accent { color: var(--accent); }
+    .kpi { padding: 16px 17px 14px; min-height: 112px; }
+    .kpi-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+    .kpi-icon { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: var(--surface-soft); color: #75847b; font-size: 13px; }
+    .kpi-value { margin: 10px 0 2px; font-size: 29px; line-height: 1.15; font-weight: 760; letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
+    .kpi-foot { color: #9aa49e; font-size: 10px; }
+    .green { color: var(--accent); }
     .blue { color: var(--blue); }
-    .purple { color: var(--purple); }
+    .violet { color: var(--violet); }
     .amber { color: var(--amber); }
     .red { color: var(--red); }
-    .main-grid { grid-template-columns: minmax(0, 1.55fr) minmax(320px, .9fr); margin-bottom: 14px; }
-    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 0; }
-    .panel-title { margin: 0; font-size: 14px; font-weight: 680; letter-spacing: -.015em; }
-    .panel-subtitle { color: var(--muted); font-size: 11px; margin-top: 3px; }
-    .chart-wrap { padding: 12px 16px 12px; }
-    canvas { display: block; width: 100%; height: 220px; }
-    .chart-legend { display: flex; gap: 18px; color: var(--muted); font-size: 11px; padding: 0 4px 4px; }
-    .legend-dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 6px; }
-    .pipeline { padding: 18px 20px 20px; }
-    .pipeline-row { display: grid; grid-template-columns: 76px 1fr 34px; align-items: center; gap: 10px; margin: 14px 0; }
-    .pipeline-label { color: #b5c0ce; font-size: 12px; }
-    .track { height: 7px; background: #222d3c; border-radius: 99px; overflow: hidden; }
-    .fill { height: 100%; border-radius: inherit; background: var(--accent); min-width: 0; }
-    .pipeline-count { color: var(--text); font-variant-numeric: tabular-nums; text-align: right; font-size: 12px; }
-    .lower-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); margin-bottom: 14px; }
-    .sessions { padding: 16px 18px 18px; display: grid; gap: 10px; }
-    .session {
-      border: 1px solid #2a3749; background: rgba(12,17,25,.34);
-      border-radius: 12px; padding: 13px 14px;
+    .overview-grid { grid-template-columns: minmax(0,1.35fr) minmax(300px,.9fr); margin-bottom: 13px; }
+    .section-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 17px 18px 0; }
+    .section-title { margin: 0; font-size: 13px; font-weight: 730; letter-spacing: -.02em; }
+    .section-subtitle { margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .chart-wrap { padding: 11px 15px 13px; }
+    canvas { display: block; width: 100%; height: 190px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 15px; padding: 0 3px; color: var(--muted); font-size: 10px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 7px; height: 7px; border-radius: 3px; display: inline-block; }
+    .funnel { padding: 15px 18px 18px; }
+    .funnel-row { display: grid; grid-template-columns: 83px 1fr 35px; gap: 10px; align-items: center; margin: 13px 0; }
+    .funnel-label { color: #68766e; font-size: 10px; }
+    .funnel-track { height: 7px; border-radius: 9px; overflow: hidden; background: #f0f3f1; }
+    .funnel-fill { height: 100%; border-radius: inherit; min-width: 0; }
+    .funnel-value { text-align: right; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .funnel-foot { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 15px; color: var(--muted); font-size: 10px; line-height: 1.7; }
+    .accounts-grid { grid-template-columns: repeat(2,minmax(0,1fr)); margin-bottom: 13px; }
+    .account-list { display: grid; gap: 9px; padding: 14px 17px 17px; }
+    .account {
+      border: 1px solid var(--line); border-radius: 11px; padding: 12px 13px;
+      display: flex; justify-content: space-between; gap: 14px; align-items: flex-start;
     }
-    .session-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .session-name { font-weight: 650; font-size: 13px; }
-    .session-account { color: var(--muted); font-size: 11px; margin-top: 2px; overflow-wrap: anywhere; }
-    .session-status { font-size: 10px; border-radius: 999px; padding: 4px 8px; white-space: nowrap; border: 1px solid var(--border); color: var(--muted); }
-    .session-status.online { color: var(--accent); border-color: rgba(167,227,107,.25); background: rgba(167,227,107,.07); }
-    .session-status.busy { color: var(--amber); border-color: rgba(242,196,109,.25); }
-    .session-status.error, .session-status.unauthorized, .session-status.missing { color: var(--red); border-color: rgba(255,125,134,.25); }
-    .session-metrics { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 12px; color: var(--muted); font-size: 11px; }
-    .session-metrics b { color: var(--text); font-weight: 650; margin-right: 3px; }
-    .empty { color: var(--muted); text-align: center; padding: 26px 12px; font-size: 12px; }
-    .activity { overflow: hidden; }
-    .activity-list { padding: 7px 20px 12px; }
-    .activity-row {
-      display: grid; grid-template-columns: 105px minmax(0,1fr) auto; gap: 14px;
-      align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(38,50,68,.72);
-    }
+    .account-name { font-size: 12px; font-weight: 700; }
+    .account-identity { color: var(--muted); font-size: 10px; margin-top: 2px; }
+    .account-status { border-radius: 20px; padding: 3px 8px; font-size: 9px; font-weight: 700; background: #f0f3f1; color: #738078; white-space: nowrap; }
+    .account-status.online { background: var(--accent-soft); color: var(--accent); }
+    .account-status.busy { background: var(--amber-soft); color: var(--amber); }
+    .account-status.error, .account-status.unauthorized, .account-status.missing { background: var(--red-soft); color: var(--red); }
+    .account-stats { display: flex; flex-wrap: wrap; gap: 13px; margin-top: 10px; color: var(--muted); font-size: 10px; }
+    .account-stats b { color: var(--text); font-weight: 700; }
+    .activity-list { padding: 5px 18px 11px; }
+    .activity-row { display: grid; grid-template-columns: 76px minmax(0,1fr) auto; align-items: center; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--line); }
     .activity-row:last-child { border-bottom: 0; }
-    .activity-time { color: #748399; font-size: 11px; font-variant-numeric: tabular-nums; }
-    .activity-title { font-size: 12px; font-weight: 620; }
-    .activity-detail { color: var(--muted); font-size: 11px; margin-top: 2px; overflow-wrap: anywhere; }
-    .activity-session { color: #8190a4; font-size: 10px; white-space: nowrap; }
-    .note {
-      color: #77869a; font-size: 11px; line-height: 1.6; margin-top: 15px;
-      padding: 0 2px;
-    }
-    .error-banner {
-      display: none; border: 1px solid rgba(255,125,134,.25); color: #ffb4ba;
-      background: rgba(255,125,134,.07); border-radius: 11px; padding: 10px 13px;
-      margin-bottom: 14px; font-size: 12px;
-    }
+    .activity-time { color: #9aa49e; font-size: 9px; white-space: nowrap; }
+    .activity-title { font-size: 11px; font-weight: 650; }
+    .activity-detail { margin-top: 2px; color: var(--muted); font-size: 10px; }
+    .activity-session { color: #9aa49e; font-size: 9px; white-space: nowrap; }
+    .two-col { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 13px; }
+    .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .filters .input { width: 230px; }
+    .table-wrap { overflow: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 720px; }
+    th { padding: 11px 13px; color: #9aa49e; font-size: 9px; font-weight: 750; text-align: left; text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid var(--line); }
+    td { padding: 11px 13px; border-bottom: 1px solid #f0f3f1; font-size: 10px; vertical-align: middle; }
+    tr:last-child td { border-bottom: 0; }
+    .contact-main { font-size: 11px; font-weight: 700; }
+    .contact-sub { margin-top: 3px; color: var(--muted); font-size: 9px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status-chip { display: inline-flex; align-items: center; border-radius: 20px; padding: 3px 8px; font-size: 9px; font-weight: 700; background: #f0f3f1; color: #68766e; }
+    .status-chip.new { color: var(--blue); background: var(--blue-soft); }
+    .status-chip.contacted { color: var(--amber); background: var(--amber-soft); }
+    .status-chip.replied { color: var(--accent); background: var(--accent-soft); }
+    .status-chip.warm { color: var(--violet); background: var(--violet-soft); }
+    .status-chip.declined { color: var(--red); background: var(--red-soft); }
+    .table-actions { display: flex; align-items: center; gap: 6px; }
+    .small-button { padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; background: white; color: #66756c; font-size: 9px; font-weight: 650; }
+    .small-button:hover { border-color: #b9cabe; color: var(--accent); }
+    .ops-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .task-card { padding: 15px 16px; display: flex; flex-direction: column; gap: 12px; }
+    .task-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .task-name { font-size: 12px; font-weight: 730; }
+    .task-description { color: var(--muted); font-size: 10px; margin-top: 4px; line-height: 1.55; }
+    .task-badge { border-radius: 20px; padding: 3px 7px; font-size: 9px; font-weight: 700; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+    .task-badge.sends { background: var(--amber-soft); color: var(--amber); }
+    .task-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
+    .process-list { display: grid; gap: 8px; padding: 14px 17px 17px; }
+    .process-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+    .process-title { font-size: 11px; font-weight: 700; }
+    .process-meta { color: var(--muted); font-size: 9px; margin-top: 3px; }
+    .process-actions { display: flex; gap: 6px; align-items: center; }
+    .inbox { display: grid; grid-template-columns: 300px minmax(0,1fr); min-height: 620px; overflow: hidden; }
+    .inbox-list { border-right: 1px solid var(--line); min-width: 0; }
+    .inbox-list-head { padding: 13px; border-bottom: 1px solid var(--line); display: grid; gap: 9px; }
+    .inbox-list-head .input { width: 100%; }
+    .chat-items { max-height: 650px; overflow-y: auto; }
+    .chat-item { display: flex; align-items: flex-start; gap: 10px; width: 100%; border: 0; border-bottom: 1px solid #f0f3f1; background: transparent; text-align: left; padding: 12px 13px; }
+    .chat-item:hover { background: var(--surface-soft); }
+    .chat-item.active { background: var(--accent-soft); }
+    .avatar { flex: 0 0 31px; width: 31px; height: 31px; display: grid; place-items: center; border-radius: 10px; background: #edf2ef; color: #6d7d73; font-size: 10px; font-weight: 750; }
+    .chat-item-main { min-width: 0; flex: 1; }
+    .chat-item-top { display: flex; justify-content: space-between; gap: 6px; }
+    .chat-item-name { font-size: 10px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat-item-date { color: #a0aaa4; font-size: 8px; white-space: nowrap; }
+    .chat-item-preview { color: var(--muted); font-size: 9px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chat-item-tags { display: flex; gap: 5px; margin-top: 5px; }
+    .mini-tag { padding: 2px 5px; border-radius: 5px; color: #748178; background: #f0f3f1; font-size: 8px; }
+    .mini-tag.unread { color: var(--blue); background: var(--blue-soft); }
+    .thread { min-width: 0; display: flex; flex-direction: column; }
+    .thread-head { padding: 15px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .thread-name { font-size: 13px; font-weight: 730; }
+    .thread-meta { margin-top: 3px; color: var(--muted); font-size: 9px; }
+    .thread-messages { flex: 1; padding: 18px; min-height: 300px; max-height: 470px; overflow-y: auto; display: flex; flex-direction: column; gap: 9px; background: #fbfcfb; }
+    .message { max-width: min(76%, 620px); border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; background: white; align-self: flex-start; }
+    .message.out { align-self: flex-end; background: var(--accent-soft); border-color: #dceee3; }
+    .message-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 10px; line-height: 1.6; }
+    .message-time { margin-top: 5px; color: #9aa49e; font-size: 8px; text-align: right; }
+    .composer { padding: 13px 16px 15px; border-top: 1px solid var(--line); background: white; }
+    .composer-row { display: flex; gap: 8px; align-items: flex-end; }
+    .composer-row .textarea { flex: 1; min-height: 62px; }
+    .composer-note { color: #9aa49e; font-size: 9px; margin-top: 7px; }
+    .agent-layout { display: grid; grid-template-columns: minmax(0,1fr) 240px; gap: 13px; }
+    .agent-chat { min-height: 620px; display: flex; flex-direction: column; overflow: hidden; }
+    .agent-messages { flex: 1; min-height: 450px; max-height: 620px; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 11px; background: #fbfcfb; }
+    .bubble { max-width: min(85%,700px); padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; background: white; font-size: 11px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .bubble.user { align-self: flex-end; color: #225c40; background: var(--accent-soft); border-color: #dceee3; }
+    .bubble.assistant { align-self: flex-start; }
+    .bubble-meta { color: #9aa49e; font-size: 8px; margin-top: 6px; }
+    .agent-composer { padding: 13px; display: flex; gap: 8px; align-items: flex-end; border-top: 1px solid var(--line); }
+    .agent-composer .textarea { flex: 1; min-height: 56px; }
+    .agent-aside { padding: 15px; height: fit-content; }
+    .agent-aside h3 { margin: 0 0 9px; font-size: 11px; }
+    .agent-aside p { color: var(--muted); font-size: 9px; line-height: 1.6; margin: 0 0 12px; }
+    .suggestion { display: block; width: 100%; text-align: left; padding: 8px 9px; border: 1px solid var(--line); background: white; border-radius: 8px; color: #5d6b62; font-size: 9px; margin-top: 6px; }
+    .suggestion:hover { border-color: #b9cabe; color: var(--accent); }
+    .logs-layout { display: grid; grid-template-columns: 230px minmax(0,1fr); gap: 13px; }
+    .log-sources { padding: 12px; display: grid; align-content: start; gap: 5px; }
+    .log-source { padding: 9px 10px; border: 0; border-radius: 8px; background: transparent; color: #67756c; text-align: left; font-size: 10px; }
+    .log-source.active, .log-source:hover { color: var(--accent); background: var(--accent-soft); }
+    .log-view { min-height: 540px; overflow: hidden; }
+    .log-view pre { margin: 0; padding: 15px 17px; max-height: 610px; overflow: auto; background: #17221c; color: #d4e1d8; font: 10px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .log-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+    .empty { padding: 32px 14px; text-align: center; color: #9aa49e; font-size: 10px; }
+    .toast { position: fixed; right: 22px; bottom: 20px; z-index: 20; max-width: 380px; padding: 11px 14px; border-radius: 10px; color: white; background: #26372d; box-shadow: 0 10px 30px rgba(0,0,0,.16); font-size: 11px; opacity: 0; transform: translateY(8px); pointer-events: none; transition: .2s; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { background: #a94444; }
+    .modal-backdrop { position: fixed; inset: 0; z-index: 30; display: none; place-items: center; padding: 18px; background: rgba(22,34,27,.35); }
+    .modal-backdrop.open { display: grid; }
+    .modal { width: min(560px,100%); padding: 20px; background: white; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 20px 70px rgba(0,0,0,.18); }
+    .modal h2 { margin: 0; font-size: 15px; }
+    .modal p { color: var(--muted); font-size: 10px; line-height: 1.6; }
+    .draft-text { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); white-space: pre-wrap; font-size: 11px; line-height: 1.65; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    .notice { padding: 11px 13px; border: 1px solid #e7ede9; border-radius: 10px; color: #758078; background: #fbfcfb; font-size: 10px; line-height: 1.6; }
+    .error-banner { display: none; margin-bottom: 13px; padding: 10px 13px; border: 1px solid #f0d9d9; border-radius: 9px; background: var(--red-soft); color: var(--red); font-size: 10px; }
     @media (max-width: 1100px) {
-      .stats { grid-template-columns: repeat(3, minmax(0,1fr)); }
-      .main-grid, .lower-grid { grid-template-columns: 1fr; }
+      .app { grid-template-columns: 205px minmax(0,1fr); }
+      .main { padding: 0 20px 35px; }
+      .kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .overview-grid, .accounts-grid { grid-template-columns: 1fr; }
+      .agent-layout { grid-template-columns: 1fr; }
+      .agent-aside { display: none; }
     }
-    @media (max-width: 650px) {
-      .shell { padding: 20px 14px 34px; }
-      header, .toolbar { align-items: flex-start; flex-direction: column; }
-      .header-right { width: 100%; justify-content: space-between; }
-      .filters { width: 100%; }
-      .filters select { flex: 1; min-width: 0; }
-      .stats { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; }
-      .stat { min-height: 112px; padding: 14px; }
-      .stat-value { font-size: 27px; }
-      .activity-row { grid-template-columns: 74px minmax(0,1fr); gap: 9px; }
+    @media (max-width: 760px) {
+      .app { display: block; }
+      .sidebar { position: sticky; z-index: 10; top: 0; height: auto; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .brand { padding: 0 3px 10px; }
+      .brand-mark { width: 30px; height: 30px; }
+      .nav-label, .sidebar-bottom { display: none; }
+      .nav { display: flex; overflow-x: auto; gap: 4px; }
+      .nav-button { width: auto; padding: 8px 9px; white-space: nowrap; font-size: 10px; }
+      .nav-icon { display: none; }
+      .main { padding: 0 12px 30px; }
+      .topbar { min-height: 70px; margin-bottom: 17px; }
+      .page-heading h1 { font-size: 17px; }
+      .top-status { display: none; }
+      .select { min-width: 110px; max-width: 125px; }
+      .kpis { gap: 8px; }
+      .kpi { min-height: 103px; padding: 12px; }
+      .kpi-value { font-size: 25px; }
+      .two-col, .ops-grid { grid-template-columns: 1fr; }
+      .inbox { grid-template-columns: 1fr; }
+      .inbox-list { border-right: 0; border-bottom: 1px solid var(--line); }
+      .chat-items { max-height: 210px; }
+      .thread { min-height: 520px; }
+      .thread-messages { max-height: 400px; }
+      .logs-layout { grid-template-columns: 1fr; }
+      .log-sources { display: flex; overflow-x: auto; }
+      .log-source { white-space: nowrap; }
+      .filters .input { width: 100%; }
+      .page-toolbar { align-items: flex-start; flex-direction: column; }
+      .activity-row { grid-template-columns: 58px minmax(0,1fr); }
       .activity-session { grid-column: 2; }
-      .panel-head { padding-left: 15px; padding-right: 15px; }
-      .activity-list { padding-left: 15px; padding-right: 15px; }
     }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <header>
+  <div class="app">
+    <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">TG</div>
-        <div>
-          <h1>TG Ops <span style="color:var(--muted);font-weight:500">/ Admin</span></h1>
-          <div class="subtitle">Операционная панель Telegram-аутрича</div>
-        </div>
+        <div><div class="brand-name">TG Ops</div><div class="brand-caption">CONTROL CENTER</div></div>
       </div>
-      <div class="header-right">
-        <div class="status-pill"><span class="dot"></span><span id="system-status">Сбор данных</span></div>
-        <button class="button" id="refresh-button" type="button">↻ Обновить</button>
+      <div class="nav-label">Workspace</div>
+      <nav class="nav">
+        <button class="nav-button active" data-page="overview"><span class="nav-icon">◫</span>Обзор</button>
+        <button class="nav-button" data-page="inbox"><span class="nav-icon">▤</span>Переписки</button>
+        <button class="nav-button" data-page="leads"><span class="nav-icon">◎</span>HR-база</button>
+        <button class="nav-button" data-page="operations"><span class="nav-icon">⌘</span>Процессы</button>
+        <button class="nav-button" data-page="agent"><span class="nav-icon">✳</span>AI Manager</button>
+        <button class="nav-button" data-page="logs"><span class="nav-icon">≡</span>Логи</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="local-tag"><span class="local-dot"></span>Локальный сервер</div>
+        <div class="sidebar-foot">Сообщения проходят через humanizer-framework. Команды доступны только из разрешённого списка.</div>
       </div>
-    </header>
+    </aside>
 
-    <div class="toolbar">
-      <div>
-        <div class="section-kicker">Обзор системы</div>
-        <div class="subtitle" id="updated-at">Загружаю состояние…</div>
-      </div>
-      <div class="filters">
-        <select id="period">
-          <option value="24h">Последние 24 часа</option>
-          <option value="7d">7 дней</option>
-          <option value="30d" selected>30 дней</option>
-          <option value="90d">90 дней</option>
-          <option value="all">Вся история телеметрии</option>
-        </select>
-        <select id="session-filter"><option value="all">Все сессии</option></select>
-      </div>
-    </div>
+    <main class="main">
+      <header class="topbar">
+        <div class="page-heading">
+          <h1 id="page-title">Обзор</h1>
+          <p id="page-subtitle">Состояние Telegram-аутрича и активность системы</p>
+        </div>
+        <div class="top-actions">
+          <div class="top-status"><span class="status-dot"></span><span id="system-status">Подключение…</span></div>
+          <select class="select" id="global-session"><option value="all">Все аккаунты</option></select>
+          <button class="button" id="refresh-button" type="button">↻ Обновить</button>
+        </div>
+      </header>
 
-    <div class="error-banner" id="error-banner"></div>
+      <div class="error-banner" id="error-banner"></div>
 
-    <section class="grid stats">
-      <article class="card stat">
-        <div class="stat-label">Активные чаты <span class="accent">LIVE</span></div>
-        <div class="stat-value" id="active-chats">—</div>
-        <div class="stat-foot">Личные диалоги с активностью за 30 дней</div>
-      </article>
-      <article class="card stat">
-        <div class="stat-label">Исходящие сообщения <span class="blue">↗</span></div>
-        <div class="stat-value" id="outbound">—</div>
-        <div class="stat-foot">Фактически отправлено за период</div>
-      </article>
-      <article class="card stat">
-        <div class="stat-label">Ответы отправлены <span class="purple">↳</span></div>
-        <div class="stat-value" id="replies">—</div>
-        <div class="stat-foot">Reply и автоответы в диалогах</div>
-      </article>
-      <article class="card stat">
-        <div class="stat-label">Резюме отправлено <span class="amber">PDF</span></div>
-        <div class="stat-value" id="resumes">—</div>
-        <div class="stat-foot">Фактически переданные файлы</div>
-      </article>
-      <article class="card stat">
-        <div class="stat-label">Сканы <span class="accent">⌕</span></div>
-        <div class="stat-value" id="scans">—</div>
-        <div class="stat-foot">Завершённые проходы сканеров</div>
-      </article>
-      <article class="card stat">
-        <div class="stat-label">Постов просмотрено <span class="blue">#</span></div>
-        <div class="stat-value" id="posts-scanned">—</div>
-        <div class="stat-foot">Суммарно по завершённым сканам</div>
-      </article>
-    </section>
+      <section class="page active" id="page-overview">
+        <div class="page-toolbar">
+          <div><div class="eyebrow">Overview</div><div class="toolbar-note" id="updated-at">Загружаю состояние…</div></div>
+          <select class="select" id="period">
+            <option value="24h">24 часа</option><option value="7d">7 дней</option>
+            <option value="30d" selected>30 дней</option><option value="90d">90 дней</option><option value="all">Вся история</option>
+          </select>
+        </div>
+        <div class="grid kpis">
+          <article class="card kpi"><div class="kpi-top">HR в базе <span class="kpi-icon">◎</span></div><div class="kpi-value" id="hr-total">—</div><div class="kpi-foot" id="hr-active-foot">Активных контактов —</div></article>
+          <article class="card kpi"><div class="kpi-top">Первых касаний вчера <span class="kpi-icon">↗</span></div><div class="kpi-value green" id="first-yesterday">—</div><div class="kpi-foot">По фактическому contacted_at</div></article>
+          <article class="card kpi"><div class="kpi-top">Активные диалоги <span class="kpi-icon">◌</span></div><div class="kpi-value" id="active-chats">—</div><div class="kpi-foot" id="active-chats-foot">Личные чаты за последние 30 дней</div></article>
+          <article class="card kpi"><div class="kpi-top">Новые HR вчера <span class="kpi-icon">＋</span></div><div class="kpi-value blue" id="new-yesterday">—</div><div class="kpi-foot">Добавлено в базу, не равно отправкам</div></article>
+          <article class="card kpi"><div class="kpi-top">Исходящие сообщения <span class="kpi-icon">↗</span></div><div class="kpi-value" id="outbound">—</div><div class="kpi-foot">Фактические отправки за период</div></article>
+          <article class="card kpi"><div class="kpi-top">Ответы отправлены <span class="kpi-icon">↳</span></div><div class="kpi-value violet" id="replies">—</div><div class="kpi-foot">Reply и автоответы</div></article>
+          <article class="card kpi"><div class="kpi-top">Резюме отправлено <span class="kpi-icon">PDF</span></div><div class="kpi-value amber" id="resumes">—</div><div class="kpi-foot">Фактически переданные файлы</div></article>
+          <article class="card kpi"><div class="kpi-top">Сканы / посты <span class="kpi-icon">⌕</span></div><div class="kpi-value" id="scans">—</div><div class="kpi-foot" id="posts-scanned">Постов просмотрено —</div></article>
+        </div>
 
-    <section class="grid main-grid">
-      <article class="card">
-        <div class="panel-head">
-          <div>
-            <h2 class="panel-title">Активность</h2>
-            <div class="panel-subtitle">Отправки, ответы и результаты сканирования</div>
+        <div class="grid overview-grid">
+          <article class="card">
+            <div class="section-head"><div><h2 class="section-title">Активность</h2><div class="section-subtitle">Отправки, сканы и резюме по дням</div></div><div class="eyebrow" id="chart-range">30 ДНЕЙ</div></div>
+            <div class="chart-wrap"><canvas id="activity-chart"></canvas><div class="legend"><span><i style="background:#23865b"></i>Сообщения</span><span><i style="background:#4678c8"></i>Сканы</span><span><i style="background:#7c67bb"></i>Резюме</span></div></div>
+          </article>
+          <article class="card">
+            <div class="section-head"><div><h2 class="section-title">Воронка HR</h2><div class="section-subtitle">Состояние лидов в локальной базе</div></div><div class="eyebrow" id="leads-total">—</div></div>
+            <div class="funnel" id="pipeline"></div>
+          </article>
+        </div>
+
+        <div class="grid accounts-grid">
+          <article class="card">
+            <div class="section-head"><div><h2 class="section-title">Telegram-аккаунты</h2><div class="section-subtitle">Сессии, состояние и активность по аккаунтам</div></div><div class="eyebrow" id="session-count">—</div></div>
+            <div class="account-list" id="sessions"><div class="empty">Проверяю аккаунты…</div></div>
+          </article>
+          <article class="card">
+            <div class="section-head"><div><h2 class="section-title">Последние события</h2><div class="section-subtitle">Что система делала последним</div></div><button class="button ghost" data-go="logs">Все логи →</button></div>
+            <div class="activity-list" id="activity-list"><div class="empty">Загрузка…</div></div>
+          </article>
+        </div>
+        <div class="notice">Важно: «новые HR» считаются по дате добавления в базу, «первые касания» — по фактической дате отправки. Исторические отправки до установки телеметрии могут быть видны только там, где есть дата в базе.</div>
+      </section>
+
+      <section class="page" id="page-inbox">
+        <div class="page-toolbar"><div><div class="eyebrow">Inbox</div><div class="toolbar-note">Личные Telegram-диалоги, входящие и ручной ответ через движок</div></div><div class="filters"><input class="input" id="chat-search" placeholder="Имя, @username или ID"><label class="toolbar-note"><input type="checkbox" id="unread-only"> Только непрочитанные</label><button class="button" id="load-chats">Обновить список</button></div></div>
+        <div class="card inbox">
+          <div class="inbox-list">
+            <div class="inbox-list-head"><div class="eyebrow">Диалоги</div><div class="toolbar-note" id="chat-count">Выбери Telegram-аккаунт сверху</div></div>
+            <div class="chat-items" id="chat-items"><div class="empty">Загрузи диалоги выбранного аккаунта.</div></div>
           </div>
-          <div class="section-kicker" id="chart-range">30 ДНЕЙ</div>
-        </div>
-        <div class="chart-wrap">
-          <canvas id="activity-chart" aria-label="График активности"></canvas>
-          <div class="chart-legend">
-            <span><i class="legend-dot" style="background:var(--accent)"></i>Сообщения</span>
-            <span><i class="legend-dot" style="background:var(--blue)"></i>Сканы</span>
-            <span><i class="legend-dot" style="background:var(--purple)"></i>Резюме</span>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="panel-head">
-          <div>
-            <h2 class="panel-title">Воронка контактов</h2>
-            <div class="panel-subtitle">Текущее состояние базы лидов</div>
-          </div>
-          <div class="section-kicker" id="leads-total">— ЛИДОВ</div>
-        </div>
-        <div class="pipeline" id="pipeline"></div>
-        <div style="padding:0 20px 18px;color:var(--muted);font-size:11px" id="pipeline-extra"></div>
-      </article>
-    </section>
-
-    <section class="grid lower-grid">
-      <article class="card">
-        <div class="panel-head">
-          <div>
-            <h2 class="panel-title">Telegram-сессии</h2>
-            <div class="panel-subtitle">Состояние аккаунтов и количество личных диалогов</div>
-          </div>
-          <div class="section-kicker" id="session-count">—</div>
-        </div>
-        <div class="sessions" id="sessions">
-          <div class="empty">Проверяю Telegram-сессии…</div>
-        </div>
-      </article>
-
-      <article class="card activity">
-        <div class="panel-head">
-          <div>
-            <h2 class="panel-title">Последние события</h2>
-            <div class="panel-subtitle">Фактические действия системы без содержимого переписок</div>
+          <div class="thread">
+            <div class="thread-head"><div><div class="thread-name" id="thread-name">Выбери переписку</div><div class="thread-meta" id="thread-meta">История сообщений появится здесь</div></div><a id="thread-link" target="_blank" rel="noopener noreferrer"></a></div>
+            <div class="thread-messages" id="thread-messages"><div class="empty">Выбери диалог слева, чтобы посмотреть историю.</div></div>
+            <div class="composer">
+              <div class="composer-row"><textarea class="textarea" id="reply-goal" placeholder="Что нужно ответить? Опиши смысл, а не готовый текст…"></textarea><button class="button primary" id="draft-reply">Подготовить</button></div>
+              <div class="composer-note">Текст сгенерирует humanizer-framework. Редактирование готового текста отключено. Отправка — отдельным действием.</div>
+            </div>
           </div>
         </div>
-        <div class="activity-list" id="activity-list">
-          <div class="empty">Событий пока нет</div>
-        </div>
-      </article>
-    </section>
+      </section>
 
-    <div class="note">
-      Счётчики отправок и сканов начинают накапливаться после установки телеметрии.
-      Текущая воронка лидов и общее число вакансий читаются из существующих локальных баз.
-      Активный чат — личный диалог, в котором последнее сообщение было за последние 30 дней.
-      Панель работает в режиме только чтения и не отправляет сообщения.
+      <section class="page" id="page-leads">
+        <div class="page-toolbar"><div><div class="eyebrow">HR database</div><div class="toolbar-note">Проверенные контакты, статусы, источник вакансии и быстрый переход в Telegram</div></div><div class="filters"><input class="input" id="lead-search" placeholder="Поиск по @username, каналу, заметке"><select class="select" id="lead-status"><option value="">Все статусы</option><option value="new">Новые</option><option value="contacted">Написали</option><option value="replied">Ответили</option><option value="warm">Тёплые</option><option value="declined">Закрытые</option></select><button class="button" id="load-leads">Найти</button></div></div>
+        <div class="grid kpis">
+          <article class="card kpi"><div class="kpi-top">HR-контакты</div><div class="kpi-value" id="lead-kpi-total">—</div><div class="kpi-foot">Username-контакты вакансий</div></article>
+          <article class="card kpi"><div class="kpi-top">Допущено в очередь вчера</div><div class="kpi-value blue" id="lead-kpi-ready">—</div><div class="kpi-foot">Это ещё не отправленные сообщения</div></article>
+          <article class="card kpi"><div class="kpi-top">Первых сообщений вчера</div><div class="kpi-value green" id="lead-kpi-sent">—</div><div class="kpi-foot">Фактические первые касания</div></article>
+          <article class="card kpi"><div class="kpi-top">Email-контакты</div><div class="kpi-value" id="lead-kpi-email">—</div><div class="kpi-foot">Не отправляются автоматически</div></article>
+        </div>
+        <article class="card table-wrap">
+          <table><thead><tr><th>Контакт</th><th>Статус</th><th>Источник</th><th>Добавлен</th><th>Первое касание</th><th>Действия</th></tr></thead><tbody id="leads-table"><tr><td colspan="6" class="empty">Загружаю базу…</td></tr></tbody></table>
+        </article>
+      </section>
+
+      <section class="page" id="page-operations">
+        <div class="page-toolbar"><div><div class="eyebrow">Operations</div><div class="toolbar-note">Управление воркерами и задачами проекта. Операции запускаются отдельными процессами.</div></div><div class="filters"><select class="select" id="ops-profile"><option value="react">react</option><option value="all">all</option><option value="ml">ml</option></select><input class="input" id="ops-limit" type="number" min="1" max="2000" value="500" style="width:95px" aria-label="Глубина сканирования"><input class="input" id="ops-daily-cap" type="number" min="0" max="30" value="10" style="width:88px" aria-label="Лимит отправок в день"><button class="button" id="reload-processes">Обновить процессы</button></div></div>
+        <div class="notice" style="margin-bottom:13px">Операции с пометкой «Отправляет» могут писать людям в Telegram. Автопилот запускает полноценный цикл рассылки. Остановка завершает процессы, которыми управляет эта админка; внешние задачи Windows/Linux Scheduler здесь не завершаются.</div>
+        <div class="grid ops-grid" id="task-grid"><div class="empty">Загружаю операции…</div></div>
+        <article class="card" style="margin-top:13px">
+          <div class="section-head"><div><h2 class="section-title">Запущенные процессы</h2><div class="section-subtitle">PID, аккаунт, состояние и доступ к логу</div></div></div>
+          <div class="process-list" id="process-list"><div class="empty">Активных процессов пока нет.</div></div>
+        </article>
+      </section>
+
+      <section class="page" id="page-agent">
+        <div class="page-toolbar"><div><div class="eyebrow">AI Manager</div><div class="toolbar-note">Операционный агент TG Ops. Может искать контакты, читать диалоги, готовить ответы и запускать разрешённые процессы.</div></div><div class="toolbar-note">Провайдер — из текущей конфигурации Humanizer</div></div>
+        <div class="agent-layout">
+          <article class="card agent-chat">
+            <div class="agent-messages" id="agent-messages"><div class="bubble assistant">Привет. Я менеджер TG Ops. Могу найти HR, открыть переписку, разобрать ответ, подготовить или отправить сообщение через humanizer-framework, посмотреть статистику и управляемые процессы.</div></div>
+            <div class="agent-composer"><textarea class="textarea" id="agent-input" placeholder="Например: найди @username, посмотри последний диалог и подготовь ответ…"></textarea><button class="button primary" id="agent-send">Отправить</button></div>
+          </article>
+          <aside class="card agent-aside">
+            <h3>Что можно поручить</h3>
+            <p>Агент использует реальные данные локальной базы и выбранной Telegram-сессии. Действия с отправкой и запуском требуют явной команды.</p>
+            <button class="suggestion" data-prompt="Покажи сводку по HR-контактам за последние 30 дней.">Сводка по HR</button>
+            <button class="suggestion" data-prompt="Найди непрочитанные HR-диалоги и покажи, кому нужен ответ.">Непрочитанные диалоги</button>
+            <button class="suggestion" data-prompt="Найди новые HR-лиды, которые ещё не получили первое сообщение.">Новые HR-лиды</button>
+            <button class="suggestion" data-prompt="Посмотри последние ошибки автопилота и объясни, что произошло.">Разобрать ошибки</button>
+            <button class="suggestion" data-prompt="Подготовь ответ последнему сообщению в выбранной переписке.">Подготовить ответ</button>
+            <div class="notice" style="margin-top:13px">Агент не имеет доступа к произвольному shell. Ручные папки и повторные касания защищены правилами проекта.</div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="page" id="page-logs">
+        <div class="page-toolbar"><div><div class="eyebrow">Logs</div><div class="toolbar-note">Вывод управляемых процессов и журнал событий TG Ops</div></div><div class="filters"><select class="select" id="log-lines"><option value="100">100 строк</option><option value="200" selected>200 строк</option><option value="500">500 строк</option><option value="1000">1000 строк</option></select><button class="button" id="reload-logs">Обновить лог</button></div></div>
+        <div class="logs-layout">
+          <article class="card"><div class="log-sources" id="log-sources"><div class="empty">Источники логов…</div></div></article>
+          <article class="card log-view"><div class="log-toolbar"><div><div class="section-title" id="log-title">Выбери источник</div><div class="section-subtitle" id="log-subtitle">Последние строки</div></div><span class="eyebrow" id="log-state">—</span></div><pre id="log-content">Лог не выбран.</pre></article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="modal-backdrop" id="draft-modal">
+    <div class="modal">
+      <h2 id="draft-title">Сообщение подготовлено</h2>
+      <p id="draft-description">Текст прошёл humanizer-framework. Проверь получателя и отправь отдельной кнопкой.</p>
+      <div class="draft-text" id="draft-text"></div>
+      <div class="modal-actions"><button class="button" id="draft-cancel">Закрыть</button><button class="button primary" id="draft-send">Отправить в Telegram</button></div>
     </div>
   </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
-    const state = { range: "30d", session: "all", summary: null, timeline: [] };
+    const storedAgentMessages = (() => {
+      try {
+        const value = JSON.parse(localStorage.getItem("tgops-agent-messages") || "[]");
+        return Array.isArray(value) ? value : [];
+      } catch (_) {
+        return [];
+      }
+    })();
+    const state = {
+      page: "overview", range: "30d", session: "all", summary: null, timeline: [],
+      sessions: [], tasks: [], activeChat: null, draftId: null, logSource: "cron",
+      conversationId: localStorage.getItem("tgops-agent-conversation") || null,
+      agentMessages: storedAgentMessages
+    };
     const fmt = (value) => new Intl.NumberFormat("ru-RU").format(Number(value || 0));
-    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
     })[char]);
-    const dateTime = (value) => {
-      if (!value) return "нет данных";
-      const date = new Date(value);
-      return Number.isNaN(date.getTime()) ? "нет данных" :
-        new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(date);
+    const richText = (value) => esc(value).replace(
+      /(^|\s)@([A-Za-z][A-Za-z0-9_]{4,31})/g,
+      '$1<a href="https://t.me/$2" target="_blank" rel="noopener noreferrer">@$2</a>'
+    );
+    const safeLink = (value) => {
+      const link = String(value || "");
+      return /^https:\/\/t\.me\/[A-Za-z0-9_+/?=-]+$/i.test(link) || /^tg:\/\/user\?id=\d+$/.test(link) ? link : "";
     };
+    const dateTime = (value, includeYear = false) => {
+      if (!value) return "—";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "—";
+      return new Intl.DateTimeFormat("ru-RU", {
+        day: "2-digit", month: "short", ...(includeYear ? { year: "2-digit" } : {}),
+        hour: "2-digit", minute: "2-digit"
+      }).format(date);
+    };
+    const shortDate = (value) => {
+      if (!value) return "—";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? String(value).slice(0, 10) : new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short" }).format(date);
+    };
+    const statusName = (value) => ({
+      online: "Доступен", busy: "Занят", missing: "Нет файла", unauthorized: "Не авторизован",
+      disabled: "Отключён", error: "Ошибка", new: "Новый", contacted: "Написали",
+      replied: "Ответил", warm: "Тёплый", declined: "Закрыт"
+    })[value] || value || "—";
 
-    function queryString() {
-      return "range=" + encodeURIComponent(state.range) + "&session=" + encodeURIComponent(state.session);
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        ...options,
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "HTTP " + response.status);
+      return data;
     }
-
-    async function api(path, options) {
-      const response = await fetch(path, options);
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      return response.json();
+    function toast(message, isError = false) {
+      const node = $("toast");
+      node.textContent = message;
+      node.className = "toast show" + (isError ? " error" : "");
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(() => node.className = "toast", 3200);
+    }
+    function setPage(page) {
+      state.page = page;
+      document.querySelectorAll(".page").forEach(node => node.classList.toggle("active", node.id === "page-" + page));
+      document.querySelectorAll(".nav-button").forEach(node => node.classList.toggle("active", node.dataset.page === page));
+      const titles = {
+        overview: ["Обзор", "Состояние Telegram-аутрича и активность системы"],
+        inbox: ["Переписки", "Живые Telegram-диалоги и ручные ответы"],
+        leads: ["HR-база", "Контакты, статусы и источники вакансий"],
+        operations: ["Процессы", "Запуск, мониторинг и остановка задач"],
+        agent: ["AI Manager", "Поручай задачи менеджеру проекта"],
+        logs: ["Логи", "Диагностика и история операций"]
+      };
+      $("page-title").textContent = titles[page][0];
+      $("page-subtitle").textContent = titles[page][1];
+      if (page === "inbox") loadChats();
+      if (page === "leads") loadLeads();
+      if (page === "operations") loadProcesses();
+      if (page === "logs") loadLogSources();
     }
 
     function renderSummary(data) {
       const m = data.metrics || {};
+      const p = data.pipeline || {};
       const live = data.live || {};
-      const pipeline = data.pipeline || {};
+      $("hr-total").textContent = fmt(p.hr_total);
+      $("hr-active-foot").textContent = "Активных " + fmt(p.hr_active) + " · новых " + fmt(p.hr_new);
+      $("first-yesterday").textContent = fmt(p.first_contacts_yesterday);
       $("active-chats").textContent = fmt(live.active_chats_30d);
+      $("active-chats-foot").textContent = fmt(live.unread_chats) + " непрочитанных · активность за 30 дней";
+      $("new-yesterday").textContent = fmt(p.new_leads_yesterday);
       $("outbound").textContent = fmt(m.outbound_messages);
       $("replies").textContent = fmt(m.replies_sent);
       $("resumes").textContent = fmt(m.resumes_sent);
       $("scans").textContent = fmt(m.scan_runs);
-      $("posts-scanned").textContent = fmt(m.posts_scanned);
-      $("updated-at").textContent = "Обновлено " + dateTime(data.sessions_updated_at) +
-        " · " + fmt(live.available_sessions) + "/" + fmt(live.configured_sessions) + " сессий доступны";
-      $("system-status").textContent = data.refreshing ? "Обновляю данные" :
-        (live.available_sessions ? "Система доступна" : "Нет доступных сессий");
-      $("leads-total").textContent = fmt(pipeline.leads_total) + " ЛИДОВ";
-      $("pipeline-extra").textContent =
-        "В очереди: " + fmt(pipeline.leads_queued) + " · На проверке: " +
-        fmt(pipeline.leads_review) + " · Вакансий в базе: " + fmt(pipeline.vacancies_total) +
-        " · Новых вакансий за период: " + fmt(m.new_vacancies) +
-        " · Холодные: " + fmt(m.cold_outreach) + " · Догонки: " + fmt(m.followups) +
-        " · Тёплые: " + fmt(m.warm_returns) + " · Входящие: " + fmt(m.inbound_messages) +
-        " · Ошибки: " + fmt(m.operation_errors);
-      renderPipeline(pipeline.leads_by_status || {});
+      $("posts-scanned").textContent = fmt(m.posts_scanned) + " постов просмотрено";
+      $("updated-at").textContent = "Обновлено " + dateTime(data.sessions_updated_at) + " · " +
+        fmt(live.available_sessions) + " уникальных аккаунтов доступны · " +
+        fmt(live.configured_sessions) + " session-файлов";
+      $("system-status").textContent = live.available_sessions ? "Система доступна" : "Нет доступных аккаунтов";
+      $("leads-total").textContent = fmt(p.hr_total) + " HR";
+      renderPipeline(p);
       renderSessions(data.sessions || []);
+      $("lead-kpi-total").textContent = fmt(p.hr_total);
+      $("lead-kpi-ready").textContent = fmt(p.ready_yesterday);
+      $("lead-kpi-sent").textContent = fmt(p.first_contacts_yesterday);
+      $("lead-kpi-email").textContent = fmt(p.email_total);
     }
 
-    function renderPipeline(statuses) {
+    function renderPipeline(pipeline) {
       const rows = [
-        ["new", "Новые", "var(--blue)"],
-        ["contacted", "Написали", "var(--accent)"],
-        ["replied", "Ответили", "var(--purple)"],
-        ["warm", "Тёплые", "var(--amber)"],
-        ["declined", "Закрытые", "var(--red)"]
+        ["new", "Новые", "#4678c8"], ["contacted", "Написали", "#b17a24"],
+        ["replied", "Ответили", "#23865b"], ["warm", "Тёплые", "#7c67bb"],
+        ["declined", "Закрытые", "#c45656"]
       ];
-      const max = Math.max(1, ...rows.map((row) => Number(statuses[row[0]] || 0)));
-      $("pipeline").innerHTML = rows.map((row) => {
-        const count = Number(statuses[row[0]] || 0);
-        const width = Math.round((count / max) * 100);
-        return '<div class="pipeline-row"><div class="pipeline-label">' + row[1] +
-          '</div><div class="track"><div class="fill" style="width:' + width +
-          '%;background:' + row[2] + '"></div></div><div class="pipeline-count">' +
-          fmt(count) + '</div></div>';
-      }).join("");
-    }
-
-    function statusLabel(status) {
-      return ({
-        online: "Доступна", busy: "Занята", missing: "Нет файла",
-        unauthorized: "Нужен вход", disabled: "Отключена", error: "Ошибка"
-      })[status] || status || "Неизвестно";
+      const values = rows.map(row => Number((pipeline.leads_by_status || {})[row[0]] || 0));
+      const max = Math.max(1, ...values);
+      $("pipeline").innerHTML = rows.map((row, i) =>
+        '<div class="funnel-row"><div class="funnel-label">' + row[1] +
+        '</div><div class="funnel-track"><div class="funnel-fill" style="width:' +
+        Math.round(values[i] / max * 100) + '%;background:' + row[2] +
+        '"></div></div><div class="funnel-value">' + fmt(values[i]) + '</div></div>'
+      ).join("") +
+      '<div class="funnel-foot">В очереди: <b>' + fmt(pipeline.leads_queued) +
+      '</b> · На проверке: <b>' + fmt(pipeline.leads_review) +
+      '</b><br>Добавлено вчера: <b>' + fmt(pipeline.new_leads_yesterday) +
+      '</b> · Допущено в очередь: <b>' + fmt(pipeline.ready_yesterday) +
+      '</b><br>Новых первых касаний вчера: <b>' + fmt(pipeline.first_contacts_yesterday) +
+      '</b><br>Сегодня: добавлено <b>' + fmt(pipeline.new_leads_today) +
+      '</b> · допущено <b>' + fmt(pipeline.ready_today) +
+      '</b> · первых касаний <b>' + fmt(pipeline.first_contacts_today) +
+      '</b><br>Ошибок операций: <b>' + fmt(pipeline.operation_errors) +
+      '</b> · Вакансий в базе: <b>' + fmt(pipeline.vacancies_total) + '</b></div>';
     }
 
     function renderSessions(sessions) {
-      $("session-count").textContent = sessions.length + " АККАУНТ(ОВ)";
+      state.sessions = sessions;
+      $("session-count").textContent = sessions.length + " аккаунта";
       if (!sessions.length) {
         $("sessions").innerHTML = '<div class="empty">Сессии не найдены. Проверь sessions.json.</div>';
+        updateSessionSelects();
         return;
       }
-      $("sessions").innerHTML = sessions.map((item) => {
-        const status = item.status || "unknown";
-        const account = [item.account_name, item.username ? "@" + item.username : ""].filter(Boolean).join(" · ");
-        const identity = account || (item.user_id ? "ID " + item.user_id : "Аккаунт не определён");
-        return '<div class="session"><div class="session-top"><div><div class="session-name">' +
-          escapeHtml(item.name || item.id) + '</div><div class="session-account">' +
-          escapeHtml(identity) + '</div></div><span class="session-status ' +
-          escapeHtml(status) + '">' + escapeHtml(statusLabel(status)) +
-          '</span></div><div class="session-metrics"><span><b>' + fmt(item.total_chats) +
-          '</b> личных чатов</span><span><b>' + fmt(item.active_chats_30d) +
-          '</b> активных</span><span><b>' + fmt(item.unread_chats) +
-          '</b> непрочитанных</span></div></div>';
+      $("sessions").innerHTML = sessions.map(item => {
+        const identity = [item.account_name, item.username ? "@" + item.username : "", item.user_id ? "ID " + item.user_id : ""].filter(Boolean).join(" · ");
+        const url = item.username ? "https://t.me/" + encodeURIComponent(item.username) : "";
+        const metrics = item.metrics || {};
+        return '<div class="account"><div style="min-width:0;flex:1"><div class="account-name">' +
+          esc(item.name || item.id) + '</div><div class="account-identity">' +
+          (url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(identity) + '</a>' : esc(identity || "Аккаунт не определён")) +
+          '</div><div class="account-stats"><span><b>' + fmt(item.total_chats) + '</b> чатов</span><span><b>' +
+          fmt(item.active_chats_30d) + '</b> активных</span><span><b>' + fmt(item.unread_chats) +
+          '</b> непрочитанных</span><span><b>' + fmt(metrics.outbound_messages) +
+          '</b> отправок</span><span><b>' + fmt(metrics.replies_sent) +
+          '</b> ответов</span><span><b>' + fmt(metrics.resumes_sent) +
+          '</b> резюме</span><span><b>' + fmt(metrics.scan_runs) +
+          '</b> сканов</span></div></div><span class="account-status '
+          esc(item.status) + '">' + esc(statusName(item.status)) + '</span></div>';
       }).join("");
+      updateSessionSelects();
+    }
+
+    function updateSessionSelects() {
+      const selects = [$("global-session")];
+      const options = ['<option value="all">Все аккаунты</option>'].concat(
+        state.sessions.map(item => '<option value="' + esc(item.id) + '">' + esc(item.name || item.id) + '</option>')
+      ).join("");
+      selects.forEach(select => {
+        const current = select.value || state.session;
+        select.innerHTML = options;
+        if ([...select.options].some(option => option.value === current)) select.value = current;
+      });
+      if (state.session === "all" && state.sessions.length) {
+        state.session = state.sessions.find(item => item.status !== "disabled")?.id || state.sessions[0].id;
+      }
     }
 
     function renderActivity(items) {
       if (!items.length) {
-        $("activity-list").innerHTML = '<div class="empty">Пока нет событий телеметрии. Они появятся после следующих операций.</div>';
+        $("activity-list").innerHTML = '<div class="empty">Пока нет событий телеметрии.</div>';
         return;
       }
-      $("activity-list").innerHTML = items.map((item) =>
-        '<div class="activity-row"><div class="activity-time">' + escapeHtml(dateTime(item.ts)) +
-        '</div><div><div class="activity-title">' + escapeHtml(item.title) +
-        '</div><div class="activity-detail">' + escapeHtml(item.detail) +
-        '</div></div><div class="activity-session">' +
-        escapeHtml(item.session_name || item.session_id) + '</div></div>'
-      ).join("");
+      $("activity-list").innerHTML = items.map(item => {
+        const href = safeLink(item.telegram_url);
+        const detail = href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener noreferrer">' + esc(item.detail) + '</a>' : esc(item.detail);
+        return '<div class="activity-row"><div class="activity-time">' + esc(dateTime(item.ts)) +
+          '</div><div><div class="activity-title">' + esc(item.title) +
+          '</div><div class="activity-detail">' + detail +
+          '</div></div><div class="activity-session">' + esc(item.session_name || item.session_id) + '</div></div>';
+      }).join("");
     }
 
     function drawChart(days) {
       const canvas = $("activity-chart");
       const rect = canvas.getBoundingClientRect();
+      if (!rect.width) return;
       const ratio = window.devicePixelRatio || 1;
-      canvas.width = Math.max(1, Math.floor(rect.width * ratio));
-      canvas.height = Math.floor(220 * ratio);
+      canvas.width = Math.floor(rect.width * ratio);
+      canvas.height = Math.floor(190 * ratio);
       const ctx = canvas.getContext("2d");
-      ctx.scale(ratio, ratio);
-      const width = rect.width;
-      const height = 220;
-      const pad = { top: 12, right: 10, bottom: 28, left: 28 };
-      const chartW = width - pad.left - pad.right;
-      const chartH = height - pad.top - pad.bottom;
-      const max = Math.max(1, ...days.map((day) => day.messages + day.scans + day.resumes));
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      const width = rect.width, height = 190;
+      const pad = { top: 10, right: 8, bottom: 25, left: 28 };
+      const chartW = width - pad.left - pad.right, chartH = height - pad.top - pad.bottom;
+      const max = Math.max(1, ...days.map(day => Number(day.messages || 0) + Number(day.scans || 0) + Number(day.resumes || 0)));
       ctx.clearRect(0, 0, width, height);
-      ctx.font = "10px system-ui";
-      ctx.fillStyle = "#748399";
-      ctx.strokeStyle = "rgba(116,131,153,.18)";
-      ctx.lineWidth = 1;
+      ctx.font = "9px system-ui";
+      ctx.fillStyle = "#9aa49e";
+      ctx.strokeStyle = "#edf1ee";
       for (let i = 0; i <= 4; i++) {
-        const y = pad.top + chartH - (chartH * i / 4);
+        const y = pad.top + chartH - chartH * i / 4;
         ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(width - pad.right, y); ctx.stroke();
         ctx.fillText(String(Math.round(max * i / 4)), 2, y + 3);
       }
       const slot = chartW / Math.max(1, days.length);
-      const barW = Math.max(2, Math.min(15, slot * .62));
+      const barW = Math.max(2, Math.min(14, slot * .58));
       days.forEach((day, index) => {
         const x = pad.left + index * slot + (slot - barW) / 2;
         let y = pad.top + chartH;
-        const parts = [
-          [day.messages, "#a7e36b"],
-          [day.scans, "#78a9ff"],
-          [day.resumes, "#b39aff"]
-        ];
-        parts.forEach((part) => {
-          const value = part[0];
-          const color = part[1];
-          const h = (Number(value || 0) / max) * chartH;
+        [[day.messages, "#23865b"], [day.scans, "#4678c8"], [day.resumes, "#7c67bb"]].forEach(part => {
+          const h = Number(part[0] || 0) / max * chartH;
           y -= h;
-          ctx.fillStyle = color;
-          ctx.fillRect(x, y, barW, Math.max(value ? 2 : 0, h));
+          ctx.fillStyle = part[1];
+          if (h > 0) ctx.fillRect(x, y, barW, Math.max(2, h));
         });
         if (index === 0 || index === days.length - 1 || index % Math.ceil(days.length / 6) === 0) {
-          const label = day.date.slice(5).replace("-", ".");
-          ctx.fillStyle = "#748399";
-          ctx.textAlign = "center";
-          ctx.fillText(label, x + barW / 2, height - 8);
+          ctx.fillStyle = "#9aa49e"; ctx.textAlign = "center";
+          ctx.fillText(day.date.slice(5).replace("-", "."), x + barW / 2, height - 7);
         }
       });
       ctx.textAlign = "start";
     }
 
-    async function load() {
+    async function loadOverview() {
+      const qs = "range=" + encodeURIComponent(state.range) + "&session=" + encodeURIComponent($("global-session").value || "all");
+      const [summary, timeline, activity] = await Promise.all([
+        api("/api/summary?" + qs), api("/api/timeline?" + qs), api("/api/activity?" + qs + "&limit=9")
+      ]);
+      state.summary = summary;
+      state.timeline = timeline.days || [];
+      renderSummary(summary);
+      renderActivity(activity.items || []);
+      drawChart(state.timeline);
+      $("chart-range").textContent = $("period").selectedOptions[0].text.toUpperCase();
+    }
+
+    async function loadAll() {
       $("error-banner").style.display = "none";
       try {
-        const qs = queryString();
-        const results = await Promise.all([
-          api("/api/summary?" + qs),
-          api("/api/timeline?" + qs),
-          api("/api/activity?" + qs + "&limit=18"),
-          api("/api/sessions")
-        ]);
-        const summary = results[0];
-        const timeline = results[1];
-        const activity = results[2];
-        const sessions = results[3];
-        state.summary = summary;
-        state.timeline = timeline.days || [];
-        renderSummary(summary);
-        renderActivity(activity.items || []);
-        drawChart(state.timeline);
-        updateSessionFilter(sessions.sessions || []);
+        const [sessions] = await Promise.all([api("/api/sessions")]);
+        renderSessions(sessions.sessions || []);
+        await loadOverview();
       } catch (error) {
-        $("error-banner").textContent = "Не удалось загрузить данные: " + error.message;
+        $("error-banner").textContent = error.message;
         $("error-banner").style.display = "block";
         $("system-status").textContent = "Ошибка загрузки";
       }
     }
 
-    function updateSessionFilter(sessions) {
-      const select = $("session-filter");
-      const current = select.value || state.session;
-      const options = ['<option value="all">Все сессии</option>'].concat(
-        sessions.map((item) => '<option value="' + escapeHtml(item.id) + '">' +
-          escapeHtml(item.name || item.id) + '</option>')
-      );
-      select.innerHTML = options.join("");
-      if ([...select.options].some((option) => option.value === current)) {
-        select.value = current;
-      }
+    async function loadLeads() {
+      try {
+        const q = encodeURIComponent($("lead-search").value || "");
+        const status = encodeURIComponent($("lead-status").value || "");
+        const data = await api("/api/leads?q=" + q + "&status=" + status + "&limit=300");
+        const rows = data.items || [];
+        if (!rows.length) {
+          $("leads-table").innerHTML = '<tr><td colspan="6" class="empty">Ничего не найдено.</td></tr>';
+          return;
+        }
+        $("leads-table").innerHTML = rows.map(row => {
+          const usernameHref = safeLink(row.telegram_url);
+          const sourceHref = safeLink(row.link);
+          const contact = usernameHref
+            ? '<a class="contact-main" href="' + esc(usernameHref) + '" target="_blank" rel="noopener noreferrer">' + esc(row.value) + '</a>'
+            : '<span class="contact-main">' + esc(row.value) + '</span>';
+          const source = sourceHref
+            ? '<a href="' + esc(sourceHref) + '" target="_blank" rel="noopener noreferrer">' + esc(row.source_channel || "Источник") + ' ↗</a>'
+            : esc(row.source_channel || "—");
+          return '<tr><td>' + contact + '<div class="contact-sub">' + esc(row.note || row.snippet || "") + '</div></td><td><span class="status-chip ' + esc(row.status) + '">' + esc(statusName(row.status)) + '</span></td><td>' + source + '</td><td>' + esc(shortDate(row.first_seen)) + '</td><td>' + esc(shortDate(row.contacted_at)) + '</td><td><div class="table-actions"><button class="small-button" data-open-lead="' + esc(row.value) + '">Открыть</button><button class="small-button" data-ask-lead="' + esc(row.value) + '">AI</button><select class="select" style="min-width:105px;padding:5px 7px;font-size:9px" data-status-lead="' + esc(row.value) + '">' +
+            ["new","contacted","replied","warm","declined"].map(value => '<option value="' + value + '"' + (row.status === value ? " selected" : "") + '>' + statusName(value) + '</option>').join("") +
+            '</select></div></td></tr>';
+        }).join("");
+      } catch (error) { toast(error.message, true); }
     }
 
-    $("period").addEventListener("change", (event) => {
-      state.range = event.target.value;
-      $("chart-range").textContent = event.target.selectedOptions[0].text.toUpperCase();
-      load();
-    });
-    $("session-filter").addEventListener("change", (event) => {
-      state.session = event.target.value;
-      load();
-    });
-    $("refresh-button").addEventListener("click", async () => {
-      const button = $("refresh-button");
-      button.disabled = true;
-      button.textContent = "Обновляю…";
+    async function updateLeadStatus(value, status) {
       try {
-        await api("/api/refresh", { method: "POST" });
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        await load();
-      } finally {
-        button.disabled = false;
-        button.textContent = "↻ Обновить";
+        await api("/api/leads/status", { method: "POST", body: JSON.stringify({ value, status }) });
+        toast("Статус обновлён");
+        await loadLeads();
+        await loadOverview();
+      } catch (error) { toast(error.message, true); }
+    }
+
+    async function loadChats() {
+      const session = $("global-session").value === "all" ? state.session : $("global-session").value;
+      if (!session || session === "all") { $("chat-items").innerHTML = '<div class="empty">Сначала выбери Telegram-аккаунт.</div>'; return; }
+      try {
+        const q = encodeURIComponent($("chat-search").value || "");
+        const unread = $("unread-only").checked ? "1" : "0";
+        const data = await api("/api/chats?session=" + encodeURIComponent(session) + "&q=" + q + "&unread=" + unread + "&limit=150");
+        $("chat-count").textContent = fmt(data.total) + " диалогов";
+        if (!data.items.length) { $("chat-items").innerHTML = '<div class="empty">Диалоги не найдены.</div>'; return; }
+        $("chat-items").innerHTML = data.items.map(item => {
+          const id = String(item.chat_id);
+          const active = state.activeChat && String(state.activeChat.chat_id) === id;
+          const name = item.name || item.username || id;
+          const initials = name.slice(0,2).toUpperCase();
+          return '<button class="chat-item ' + (active ? "active" : "") + '" data-chat-id="' + esc(id) + '" data-chat-name="' + esc(name) + '"><span class="avatar">' + esc(initials) + '</span><span class="chat-item-main"><span class="chat-item-top"><span class="chat-item-name">' + esc(name) + '</span><span class="chat-item-date">' + esc(shortDate(item.last_date)) + '</span></span><span class="chat-item-preview">' + esc(item.last_message || "Нет текстового сообщения") + '</span><span class="chat-item-tags">' +
+            (item.unread_count ? '<span class="mini-tag unread">' + fmt(item.unread_count) + ' новых</span>' : '') +
+            (item.manual ? '<span class="mini-tag">ручной режим</span>' : '') +
+            (item.lead_status ? '<span class="mini-tag">' + esc(statusName(item.lead_status)) + '</span>' : '') +
+            '</span></span></button>';
+        }).join("");
+      } catch (error) { toast(error.message, true); }
+    }
+
+    async function openChat(identifier) {
+      const session = $("global-session").value === "all" ? state.session : $("global-session").value;
+      try {
+        const data = await api("/api/chat?id=" + encodeURIComponent(identifier) + "&session=" + encodeURIComponent(session) + "&limit=40");
+        state.activeChat = data;
+        $("thread-name").textContent = data.name || String(data.chat_id);
+        const url = safeLink(data.telegram_url);
+        $("thread-link").href = url || "#";
+        $("thread-link").textContent = url ? "Открыть ↗" : "";
+        $("thread-link").style.pointerEvents = url ? "auto" : "none";
+        $("thread-meta").textContent = (data.username ? "@" + data.username + " · " : "") +
+          "ID " + data.chat_id + (data.manual ? " · ручной режим" : "") +
+          (data.lead ? " · " + statusName(data.lead.status) : "");
+        const nonReplyableLast = data.messages.length && (
+          data.last_out || data.last_message_id !== data.last_inbound_id
+        );
+        const composerBlocked = Boolean(data.manual || nonReplyableLast);
+        $("reply-goal").disabled = composerBlocked;
+        $("draft-reply").disabled = composerBlocked;
+        $("reply-goal").placeholder = data.manual
+          ? "Эта переписка находится в ручном режиме"
+          : (data.last_out
+            ? "Последнее сообщение наше. Повторное касание заблокировано."
+            : (nonReplyableLast ? "Последнее сообщение не является текстовым входящим. Ответ заблокирован." : "Что нужно ответить? Опиши смысл, а не готовый текст…"));
+        $("thread-messages").innerHTML = data.messages.length ? data.messages.map(item =>
+          '<div class="message ' + (item.out ? "out" : "") + '"><div class="message-text">' + esc(item.text) + '</div><div class="message-time">' + esc(dateTime(item.date)) + '</div></div>'
+        ).join("") : '<div class="empty">В этом диалоге ещё нет сообщений. Если контакт есть в HR-базе, можно подготовить первое касание.</div>';
+        $("thread-messages").scrollTop = $("thread-messages").scrollHeight;
+        document.querySelectorAll(".chat-item").forEach(node => node.classList.toggle("active", node.dataset.chatId === String(data.chat_id)));
+      } catch (error) { toast(error.message, true); }
+    }
+
+    function showDraftModal(draft) {
+      state.draftId = draft.draft_id;
+      $("draft-title").textContent = draft.mode === "cold" ? "Первое касание подготовлено" : "Ответ подготовлен";
+      $("draft-description").textContent = (draft.chat_name || draft.username || "Контакт") +
+        " · текст прошёл humanizer-framework. Отправка выполнится только после нажатия кнопки.";
+      $("draft-text").textContent = draft.text || "";
+      $("draft-modal").classList.add("open");
+      $("draft-send").disabled = false;
+    }
+    async function draftReply() {
+      if (!state.activeChat) { toast("Сначала выбери переписку", true); return; }
+      const goal = $("reply-goal").value.trim();
+      if (!goal) { toast("Опиши, что нужно ответить", true); return; }
+      const button = $("draft-reply"); button.disabled = true; button.textContent = "Генерирую…";
+      try {
+        const draft = await api("/api/chat/draft", { method: "POST", body: JSON.stringify({
+          contact: String(state.activeChat.chat_id), goal,
+          session_id: $("global-session").value === "all" ? state.session : $("global-session").value
+        })});
+        showDraftModal(draft);
+      } catch (error) { toast(error.message, true); }
+      finally { button.disabled = false; button.textContent = "Подготовить"; }
+    }
+    async function sendDraft() {
+      if (!state.draftId) return;
+      const button = $("draft-send"); button.disabled = true; button.textContent = "Отправляю…";
+      try {
+        const result = await api("/api/chat/send", { method: "POST", body: JSON.stringify({ draft_id: state.draftId }) });
+        $("draft-modal").classList.remove("open"); state.draftId = null;
+        toast("Отправлено: " + (result.username || result.chat_name || result.chat_id));
+        if (state.activeChat) await openChat(String(state.activeChat.chat_id));
+        await loadOverview();
+      } catch (error) { toast(error.message, true); }
+      finally { button.disabled = false; button.textContent = "Отправить в Telegram"; }
+    }
+
+    async function loadProcesses() {
+      try {
+        const data = await api("/api/processes");
+        state.tasks = data.tasks || [];
+        renderTasks();
+        renderProcesses(data.active || [], data.history || [], data.external_cron_lock);
+      } catch (error) { toast(error.message, true); }
+    }
+    function renderTasks() {
+      $("task-grid").innerHTML = state.tasks.map(task =>
+        '<article class="card task-card"><div class="task-top"><div><div class="task-name">' + esc(task.label) +
+        '</div><div class="task-description">' + esc(task.description) + '</div></div><span class="task-badge ' +
+        (task.sends ? "sends" : "") + '">' + (task.sends ? "Отправляет" : "Без отправки") +
+        '</span></div><div class="task-actions"><span class="toolbar-note">' + (task.kind === "daemon" ? "Постоянный процесс" : "Разовая задача") +
+        '</span><button class="button ' + (task.id === "cron_run" ? "danger" : "") + '" data-start-task="' + esc(task.id) + '">Запустить</button></div></article>'
+      ).join("");
+    }
+    function renderProcesses(active, history, externalLock) {
+      const items = active.map(item => ({ ...item, active: true })).concat(history.slice(0,8).map(item => ({ ...item, active: false })));
+      if (externalLock) {
+        items.unshift({
+          label: externalLock.status === "running" ? "Автопилот вне админки" : "Устаревший lock автопилота",
+          status: externalLock.status,
+          pid: externalLock.pid || "—",
+          session_id: "внешний процесс",
+          started_at: null,
+          active: false,
+          external: true
+        });
       }
+      if (!items.length) { $("process-list").innerHTML = '<div class="empty">Процессы ещё не запускались из админки.</div>'; return; }
+      $("process-list").innerHTML = items.map(item =>
+        '<div class="process-row"><div><div class="process-title">' + esc(item.label) + ' · ' + esc(item.status) +
+        '</div><div class="process-meta">PID ' + esc(item.pid) + ' · ' + esc(item.session_id) + ' · ' + esc(dateTime(item.started_at)) +
+        (item.exit_code !== null && item.exit_code !== undefined ? ' · exit ' + esc(item.exit_code) : '') +
+        '</div></div><div class="process-actions"><button class="small-button" data-open-log="' + esc(item.id) + '">Лог</button>' +
+        (item.active ? '<button class="small-button" data-stop-process="' + esc(item.id) + '">Остановить</button>' : (item.external ? '<span class="toolbar-note">Управляется внешним планировщиком</span>' : '')) +
+        '</div></div>'
+      ).join("");
+    }
+    async function startTask(taskId) {
+      const task = state.tasks.find(item => item.id === taskId);
+      if (task?.sends && !confirm(
+        taskId === "cron_run"
+          ? "Автопилот может отправлять первые касания, догонки и тёплые возвраты. Запустить полный цикл?"
+          : "Эта операция может отправлять ответы в разрешённых HR-диалогах. Запустить?"
+      )) return;
+      const session = $("global-session").value === "all" ? state.session : $("global-session").value;
+      try {
+        await api("/api/processes/start", { method: "POST", body: JSON.stringify({
+          task_id: taskId, session_id: session, confirm: Boolean(task?.sends),
+          params: {
+            profile: $("ops-profile").value,
+            limit: Number($("ops-limit").value || 500),
+            daily_cap: Number($("ops-daily-cap").value || 10)
+          }
+        })});
+        toast("Процесс запущен");
+        await loadProcesses();
+      } catch (error) { toast(error.message, true); }
+    }
+    async function stopProcess(processId) {
+      if (!confirm("Остановить процесс и все его дочерние процессы?")) return;
+      try {
+        await api("/api/processes/stop", { method: "POST", body: JSON.stringify({ process_id: processId }) });
+        toast("Процесс остановлен");
+        await loadProcesses();
+      } catch (error) { toast(error.message, true); }
+    }
+
+    async function loadLogSources() {
+      try {
+        const data = await api("/api/log-sources");
+        $("log-sources").innerHTML = data.items.map(item =>
+          '<button class="log-source ' + (state.logSource === item.id ? "active" : "") + '" data-log-source="' + esc(item.id) + '">' +
+          esc(item.label) + (item.available ? "" : " · нет файла") + '</button>'
+        ).join("");
+        if (!data.items.some(item => item.id === state.logSource)) state.logSource = data.items[0]?.id || "cron";
+        await loadLog();
+      } catch (error) { toast(error.message, true); }
+    }
+    async function loadLog() {
+      try {
+        const data = await api("/api/logs?source=" + encodeURIComponent(state.logSource) + "&lines=" + encodeURIComponent($("log-lines").value));
+        $("log-title").textContent = state.logSource;
+        $("log-subtitle").textContent = data.available ? data.path_name || "Журнал" : "Файл пока не создан";
+        $("log-state").textContent = data.available ? "AVAILABLE" : "EMPTY";
+        $("log-content").textContent = data.lines.length ? data.lines.join("\n") : "Нет записей.";
+        $("log-content").scrollTop = $("log-content").scrollHeight;
+        document.querySelectorAll(".log-source").forEach(node => node.classList.toggle("active", node.dataset.logSource === state.logSource));
+      } catch (error) { toast(error.message, true); }
+    }
+
+    function renderAgentMessages() {
+      const items = state.agentMessages;
+      $("agent-messages").innerHTML = items.length ? items.map(item =>
+        '<div class="bubble ' + (item.role === "user" ? "user" : "assistant") + '">' + richText(item.content) +
+        '<div class="bubble-meta">' + (item.role === "user" ? "Вы" : "TG Ops Manager") + '</div></div>'
+      ).join("") : '<div class="bubble assistant">Привет. Я менеджер TG Ops. Могу искать HR, анализировать диалоги, готовить ответы, отправлять сообщения через движок и управлять разрешёнными процессами.</div>';
+      $("agent-messages").scrollTop = $("agent-messages").scrollHeight;
+    }
+    async function sendAgentMessage() {
+      const input = $("agent-input");
+      const message = input.value.trim();
+      if (!message) return;
+      input.value = "";
+      state.agentMessages.push({ role: "user", content: message });
+      renderAgentMessages();
+      const button = $("agent-send"); button.disabled = true; button.textContent = "Думаю…";
+      try {
+        const result = await api("/api/agent/chat", { method: "POST", body: JSON.stringify({
+          message, conversation_id: state.conversationId,
+          session_id: $("global-session").value === "all" ? state.session : $("global-session").value,
+          selected_contact: state.activeChat ? String(state.activeChat.chat_id) : null
+        })});
+        state.conversationId = result.conversation_id;
+        localStorage.setItem("tgops-agent-conversation", state.conversationId);
+        state.agentMessages.push({ role: "assistant", content: result.reply || "Готово." });
+        state.agentMessages = state.agentMessages.slice(-40);
+        localStorage.setItem("tgops-agent-messages", JSON.stringify(state.agentMessages));
+        renderAgentMessages();
+        if (result.action && !result.action.ok) toast("Инструмент не выполнил действие", true);
+      } catch (error) {
+        state.agentMessages.push({ role: "assistant", content: "Ошибка: " + error.message });
+        renderAgentMessages();
+      } finally { button.disabled = false; button.textContent = "Отправить"; }
+    }
+
+    document.querySelectorAll(".nav-button").forEach(node => node.addEventListener("click", () => setPage(node.dataset.page)));
+    document.querySelectorAll("[data-go]").forEach(node => node.addEventListener("click", () => setPage(node.dataset.go)));
+    $("refresh-button").addEventListener("click", async () => { await loadAll(); toast("Данные обновлены"); });
+    $("period").addEventListener("change", async event => { state.range = event.target.value; await loadOverview(); });
+    $("global-session").addEventListener("change", async event => {
+      state.session = event.target.value === "all" ? (state.sessions[0]?.id || "all") : event.target.value;
+      await loadOverview();
+      if (state.page === "inbox") { state.activeChat = null; await loadChats(); }
     });
+    $("load-leads").addEventListener("click", loadLeads);
+    $("lead-search").addEventListener("keydown", event => { if (event.key === "Enter") loadLeads(); });
+    $("lead-status").addEventListener("change", loadLeads);
+    $("load-chats").addEventListener("click", loadChats);
+    $("chat-search").addEventListener("keydown", event => { if (event.key === "Enter") loadChats(); });
+    $("unread-only").addEventListener("change", loadChats);
+    $("draft-reply").addEventListener("click", draftReply);
+    $("draft-send").addEventListener("click", sendDraft);
+    $("draft-cancel").addEventListener("click", () => { $("draft-modal").classList.remove("open"); state.draftId = null; });
+    $("draft-modal").addEventListener("click", event => { if (event.target === $("draft-modal")) { $("draft-modal").classList.remove("open"); state.draftId = null; } });
+    $("reload-processes").addEventListener("click", loadProcesses);
+    $("reload-logs").addEventListener("click", loadLog);
+    $("log-lines").addEventListener("change", loadLog);
+    $("agent-send").addEventListener("click", sendAgentMessage);
+    $("agent-input").addEventListener("keydown", event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendAgentMessage(); } });
+    $("ops-limit").addEventListener("change", event => {
+      event.target.value = Math.max(1, Math.min(2000, Number(event.target.value || 500)));
+    });
+    $("ops-daily-cap").addEventListener("change", event => {
+      event.target.value = Math.max(0, Math.min(30, Number(event.target.value || 10)));
+    });
+    document.addEventListener("click", async event => {
+      const target = event.target.closest("[data-open-lead]");
+      if (target) { setPage("inbox"); await openChat(target.dataset.openLead); return; }
+      const ask = event.target.closest("[data-ask-lead]");
+      if (ask) { setPage("agent"); $("agent-input").value = "Найди " + ask.dataset.askLead + ", проверь вакансию и подготовь первое сообщение. Ничего пока не отправляй."; $("agent-input").focus(); return; }
+      const chat = event.target.closest("[data-chat-id]");
+      if (chat) { await openChat(chat.dataset.chatId); return; }
+      const start = event.target.closest("[data-start-task]");
+      if (start) { await startTask(start.dataset.startTask); return; }
+      const stop = event.target.closest("[data-stop-process]");
+      if (stop) { await stopProcess(stop.dataset.stopProcess); return; }
+      const source = event.target.closest("[data-log-source]");
+      if (source) { state.logSource = source.dataset.logSource; await loadLog(); return; }
+      const log = event.target.closest("[data-open-log]");
+      if (log) { setPage("logs"); state.logSource = "process:" + log.dataset.openLog; await loadLogSources(); return; }
+      const status = event.target.closest("[data-status-lead]");
+      if (status && status.tagName === "SELECT") { await updateLeadStatus(status.dataset.statusLead, status.value); return; }
+      const suggestion = event.target.closest("[data-prompt]");
+      if (suggestion) { $("agent-input").value = suggestion.dataset.prompt; $("agent-input").focus(); }
+    });
+
+    renderAgentMessages();
+    loadAll();
+    setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      if (state.page === "operations") loadProcesses();
+      if (state.page === "logs") loadLog();
+    }, 5000);
+    setInterval(() => {
+      if (document.visibilityState === "visible") loadAll();
+    }, 60000);
     window.addEventListener("resize", () => drawChart(state.timeline));
-    $("chart-range").textContent = "30 ДНЕЙ";
-    load();
-    setInterval(load, 60000);
   </script>
 </body>
 </html>

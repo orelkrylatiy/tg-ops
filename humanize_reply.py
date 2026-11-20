@@ -90,17 +90,29 @@ def generate_reply(
     message_type=MessageType.CHAT_REPLY,
     rules=None,
     recipient=None,
+    conversation=None,
+    language="ru",
 ):
-    convo = [Message(role="user", content=m) for m in hr_msgs]
-    convo += [Message(role="assistant", content=m) for m in my_msgs]
+    if conversation is not None:
+        convo = [
+            Message(role=role, content=text)
+            for role, text in conversation
+            if text
+        ]
+    else:
+        convo = [Message(role="user", content=m) for m in hr_msgs]
+        convo += [Message(role="assistant", content=m) for m in my_msgs]
     req = CommunicationRequest(
         channel="telegram",
         domain="job_search",
         message_type=message_type,
-        language="ru",
+        language=language or "ru",
         profile="max-hr-dialog",
         conversation=convo,
-        context={"goal": goal, "lead": recipient} if recipient else {"goal": goal},
+        context={
+            "goal": goal,
+            **({"lead": recipient} if recipient else {}),
+        },
         business_rules=rules or RULES,
         voice=VoiceProfile(
             id="max",
