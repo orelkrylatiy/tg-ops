@@ -142,7 +142,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:var(--ac
   function renderStatus(){
     const s=state.status||{};
     const sessions=(s.sessions||[]).filter(x=>x.enabled&&x.exists);
-    const session=sessions.find(x=>x.id===s.default_session)||sessions[0];
+    const session=sessions.find(x=>x.id===s.default_session)||null;
     const previousSession=$("sessionSelect").value;
     $("sessionSelect").innerHTML=sessions.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")||'<option value="">Нет сессии</option>';
     if(sessions.some(x=>x.id===previousSession)) $("sessionSelect").value=previousSession;
