@@ -284,10 +284,8 @@ async def _is_manual_chat(client, entity):
         manual_peers = _manual_folder_peer_ids(await get_filters(client), AUTOMATION_FOLDER_TITLES)
         if getattr(entity, "id", None) in manual_peers:
             return True
-    except Exception as exc:
-        raise RuntimeError(
-            "Не удалось проверить пользовательские папки Telegram. Отправка заблокирована."
-        ) from exc
+    except Exception:
+        return None
     return False
 
 
@@ -343,7 +341,7 @@ async def _thread_with_client(client, identifier, limit=30):
     messages = await client.get_messages(entity, limit=max(1, min(60, int(limit))))
     ordered = list(reversed(messages or []))
     lead = _lead_for_contact("@" + entity.username) if getattr(entity, "username", None) else None
-    manual = await _is_manual_chat(client, entity)
+    manual_check = await _is_manual_chat(client, entity)
     rendered = []
     for message in ordered:
         rendered.append(
@@ -362,7 +360,8 @@ async def _thread_with_client(client, identifier, limit=30):
         "name": name,
         "username": getattr(entity, "username", None),
         "telegram_url": _chat_url(entity),
-        "manual": manual,
+        "manual": manual_check is True,
+        "manual_check_ok": manual_check is not None,
         "lead": _lead_summary(lead),
         "messages": rendered,
         "last_message_id": latest.id if latest else None,
@@ -522,6 +521,10 @@ async def _prepare_message_with_client(client, identifier, goal):
     import leads
 
     thread = await _thread_with_client(client, identifier, limit=30)
+    if not thread["manual_check_ok"]:
+        raise PermissionError(
+            "Не удалось проверить ручные папки Telegram. Просмотр доступен, отправка заблокирована."
+        )
     if thread["manual"]:
         raise PermissionError("Это ручная переписка. По правилам проекта агент её не ведёт.")
     if thread["has_messages"]:
@@ -607,8 +610,10 @@ async def send_prepared_message(draft, process_manager=None):
             import tg
 
             thread = await _thread_with_client(client, str(draft["chat_id"]), limit=10)
-            if thread["manual"]:
-                raise PermissionError("Переписка переведена в ручной режим после подготовки.")
+            if not thread["manual_check_ok"] or thread["manual"]:
+                raise PermissionError(
+                    "Не удалось подтвердить, что переписка не находится в ручном режиме."
+                )
             if (
                 thread["last_out"]
                 or thread["last_message_id"] != draft.get("reply_to_id")
@@ -639,7 +644,11 @@ async def send_prepared_message(draft, process_manager=None):
             if not record or record.get("status") != "new":
                 raise RuntimeError("Лид изменился после подготовки. Холодное касание отменено.")
             fresh_thread = await _thread_with_client(client, record["value"], limit=10)
-            if fresh_thread["manual"] or fresh_thread["has_messages"]:
+            if (
+                not fresh_thread["manual_check_ok"]
+                or fresh_thread["manual"]
+                or fresh_thread["has_messages"]
+            ):
                 raise PermissionError("Финальная защита Telegram-треда запретила первое касание.")
             OPS_DIR.mkdir(parents=True, exist_ok=True)
             map_path = OPS_DIR / f"agent-outreach-{uuid.uuid4().hex}.json"

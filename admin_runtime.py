@@ -332,11 +332,12 @@ class ProcessManager:
                 )
             if external_lock and external_lock["status"] == "stale":
                 age = int(external_lock.get("age_seconds", 0))
-                if task_id != "cron_run" or age <= 3 * 3600:
+                if age <= 3 * 3600:
                     raise RuntimeError(
-                        "Найден устаревший leads/.cron.lock. Автопилот сам снимет "
-                        "лок после 3 часов; до этого ручные операции заблокированы."
+                        "Найден устаревший leads/.cron.lock. Дождись 3 часов с момента "
+                        "создания lock; до этого операции заблокированы."
                     )
+                CRON_LOCK.unlink(missing_ok=True)
             if task_id == "cron_run" and self._active:
                 raise RuntimeError("Перед автопилотом останови остальные процессы TG Ops.")
             if task_id != "cron_run" and self.is_global_busy():

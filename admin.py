@@ -106,7 +106,7 @@ def _day_prefix(value):
 
 def _lead_statistics(records=None):
     records = records if records is not None else _load_jsonl(LEADS_PATH)
-    today = datetime.now().date()
+    today = _utc_now().date()
     yesterday = today - timedelta(days=1)
     statuses = Counter()
     hr_records = []

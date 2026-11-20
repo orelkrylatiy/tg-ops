@@ -793,14 +793,18 @@
         const nonReplyableLast = data.messages.length && (
           data.last_out || data.last_message_id !== data.last_inbound_id
         );
-        const composerBlocked = Boolean(data.manual || nonReplyableLast);
+        const composerBlocked = Boolean(
+          data.manual || !data.manual_check_ok || nonReplyableLast
+        );
         $("reply-goal").disabled = composerBlocked;
         $("draft-reply").disabled = composerBlocked;
         $("reply-goal").placeholder = data.manual
           ? "Эта переписка находится в ручном режиме"
-          : (data.last_out
-            ? "Последнее сообщение наше. Повторное касание заблокировано."
-            : (nonReplyableLast ? "Последнее сообщение не является текстовым входящим. Ответ заблокирован." : "Что нужно ответить? Опиши смысл, а не готовый текст…"));
+          : (!data.manual_check_ok
+            ? "Не удалось проверить ручные папки. Отправка заблокирована."
+            : (data.last_out
+              ? "Последнее сообщение наше. Повторное касание заблокировано."
+              : (nonReplyableLast ? "Последнее сообщение не является текстовым входящим. Ответ заблокирован." : "Что нужно ответить? Опиши смысл, а не готовый текст…")));
         $("thread-messages").innerHTML = data.messages.length ? data.messages.map(item =>
           '<div class="message ' + (item.out ? "out" : "") + '"><div class="message-text">' + esc(item.text) + '</div><div class="message-time">' + esc(dateTime(item.date)) + '</div></div>'
         ).join("") : '<div class="empty">В этом диалоге ещё нет сообщений. Если контакт есть в HR-базе, можно подготовить первое касание.</div>';
