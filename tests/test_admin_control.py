@@ -1,11 +1,11 @@
 import unittest
 
 from admin_agent import (
+    _manual_folder_peer_ids,
     explicit_send_intent,
     explicit_start_intent,
     explicit_stop_intent,
     parse_plan,
-    _manual_folder_peer_ids,
 )
 from admin_runtime import ProcessManager, _profiles, build_command
 

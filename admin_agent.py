@@ -453,8 +453,9 @@ def _source_is_fresh(record, max_days=30):
 
 
 def _generate_reply(thread, goal):
-    import humanize_reply
     from humanizer_framework.models import MessageType
+
+    import humanize_reply
 
     conversation = thread["messages"]
     hr_msgs = [item["text"] for item in conversation if item["role"] == "user" and item["text"]]
@@ -499,8 +500,8 @@ def _generate_reply(thread, goal):
 
 
 async def _prepare_message_with_client(client, identifier, goal):
-    import leads
     import humanize
+    import leads
 
     thread = await _thread_with_client(client, identifier, limit=30)
     if thread["manual"]:
