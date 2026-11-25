@@ -246,8 +246,9 @@ def classify_for_prescribe(text, msg_date, *, remote_only=True, now=None, profil
     matcher = SYSTEM_ANALYST_RE if profile == "analyst" else STACK_RE
     if not matcher.search(text):
         return "declined", "job", "нерелевантный стек"
-    if LOW_GRADE_RE.search(text):
-        return "declined", "job", "стажировка/part-time"
+    # Фильтр стажировок отменён 26.11 (решение Макса: стажировки с
+    # трудоустройством — целевой сценарий analyst-профиля и не только).
+    # LOW_GRADE_RE остаётся определён выше для истории.
     if RU_EXCLUDED_RE.search(text):
         return "declined", "job", "гео исключает РФ"
     if remote_only and OFFICE_RE.search(text) and not REMOTE_RE.search(text):
@@ -534,6 +535,18 @@ async def cmd_prescribe(client, args):
             record["status"] = "new"
             record["post_kind"] = "review"
             record["note"] = "автопрописка: повторная проверка после отмены фильтра цены"
+    # Миграция 26.11: отклонённые по стажировке возвращаются в new,
+    # если контакт ни разу не получал сообщение.
+    for record in store.values():
+        if (
+            record.get("status") == "declined"
+            and "стажировка/part-time" in record.get("note", "")
+            and not record.get("contacted_at")
+            and not record.get("manual_prescribed")
+        ):
+            record["status"] = "new"
+            record["post_kind"] = "job"
+            record["note"] = "автопрописка: повторная проверка после отмены фильтра стажировок"
     stats = {"new": 0, "queued": 0, "declined": 0, "review": 0, "existing": 0}
     ready = []
     admitted = []
