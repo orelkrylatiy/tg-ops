@@ -22,6 +22,7 @@ cron-run.py; журнал сохраняется в leads/cron-run.log.
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -124,7 +125,8 @@ def stop_outbound_for_run(st, reason):
 
 def main():
     ap = argparse.ArgumentParser(description="Крон-автопилот tg-ops (прописка+догонки+холодные)")
-    ap.add_argument("--profile", default="react", help="профиль каналов config.json")
+    ap.add_argument("--profile", default="react", help="основной профиль каналов config.json")
+    ap.add_argument("--also-profile", action="append", default=[], help="дополнительный профиль; можно повторять")
     ap.add_argument("--scan-limit", type=int, default=500, help="глубина скана на канал")
     ap.add_argument(
         "--prescribe-cap",
@@ -138,6 +140,7 @@ def main():
     ap.add_argument("--daily-cap", type=int, default=10, help="суточный лимит отправок (все типы)")
     ap.add_argument("--dry-run", action="store_true", help="без фактических отправок")
     args = ap.parse_args()
+    profiles = list(dict.fromkeys([args.profile, *args.also_profile]))
 
     print(
         f"[{stamp()}] cron-run start: dry_run={args.dry_run}, "
@@ -167,25 +170,39 @@ def main():
             "cold": st.get("sent_cold", 0),
         }
         FAILED_STEPS.clear()
-        # Скан вакансий пишет базу и digest; HR-скан ниже отвечает за очередь лидов.
-        run_step(
-            "скан вакансий",
-            ["scan_jobs.py", "scan", "--profile", args.profile, "--limit", str(args.scan_limit)],
-        )
-        # 1) прописка: скан + фильтры + верификация, ничего не отправляет
-        run_step(
-            "прописка",
-            [
-                "leads.py",
-                "prescribe",
-                "--profile",
-                args.profile,
-                "--limit",
-                str(args.scan_limit),
-                "--daily-new-limit",
-                str(args.prescribe_cap),
-            ],
-        )
+        # Каждый профиль получает отдельный скан вакансий и HR-прописку.
+        for profile_name in profiles:
+            run_step(
+                f"скан вакансий ({profile_name})",
+                ["scan_jobs.py", "scan", "--profile", profile_name, "--limit", str(args.scan_limit)],
+            )
+            run_step(
+                f"прописка ({profile_name})",
+                [
+                    "leads.py", "prescribe", "--profile", profile_name,
+                    "--limit", str(args.scan_limit),
+                    "--daily-new-limit", str(args.prescribe_cap),
+                ],
+            )
+
+        # Свежие вакансии могут содержать email-контакты. Рассылка проходит
+        # через humanizer, Gmail SMTP и отдельный лимит с recipient-ledger.
+        sent_emails = 0
+        for email_role in profiles:
+            if email_role not in ("react", "ml", "ai", "analyst"):
+                continue
+            email_cmd = [
+                "email_outreach.py", "--max-age-days", "30",
+                "--role", email_role, "--quiet",
+            ]
+            if not args.dry_run:
+                email_cmd.append("--send")
+            email_run = run_step(f"email-лиды ({email_role})", email_cmd)
+            for line in (email_run.stdout or "").splitlines():
+                match = re.fullmatch(r"EMAIL_SENT=(\d+)", line.strip())
+                if match:
+                    sent_emails += int(match.group(1))
+                    break
 
         # Живые ЛС — источник истины: свежий ответ сразу переводит холодок в
         # диалог, а не ждёт наступления окна догонки.
@@ -286,7 +303,8 @@ def main():
 
         print(
             f"\n[{stamp()}] итог за {st['date']}: догонок {st['sent_followup']}, "
-            f"тёплых {st.get('sent_warm', 0)}, холодных {st['sent_cold']} из лимита {args.daily_cap}"
+            f"тёплых {st.get('sent_warm', 0)}, холодных {st['sent_cold']} из лимита {args.daily_cap}; "
+            f"email в этом прогоне {sent_emails}"
         )
         run_completed = True
         return 0
@@ -296,7 +314,7 @@ def main():
                 {
                     "kind": "autopilot_run",
                     "source": "systemd_timer",
-                    "profile": args.profile,
+                    "profile": ",".join(profiles),
                     "started_at": started_at,
                     "status": (
                         "failed" if not run_completed else
@@ -307,6 +325,7 @@ def main():
                     "sent_followup": st.get("sent_followup", 0) - sent_before["followup"],
                     "sent_warm": st.get("sent_warm", 0) - sent_before["warm"],
                     "sent_cold": st.get("sent_cold", 0) - sent_before["cold"],
+                    "sent_email": sent_emails,
                 }
             )
         except (OSError, UnboundLocalError, NameError):

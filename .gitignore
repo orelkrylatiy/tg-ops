@@ -39,3 +39,10 @@ tmp-*
 *.bak-*
 *.corrupt-*
 .ruff_cache/
+
+# sync 26.11: секреты, рантайм-данные и персональные PDF — в git не идут
+phone2.env
+ops-data/
+code_hash2.json
+vacancies-analyst/
+resume_*.pdf

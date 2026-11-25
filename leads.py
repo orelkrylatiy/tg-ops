@@ -111,6 +111,12 @@ VACANCY_RE = re.compile(
     r"чем\s+предстоит\s+заниматься[\s\S]{0,4000}(?:наши\s+пожелания|требования|будет\s+плюсом)",
     re.IGNORECASE,
 )
+SYSTEM_ANALYST_RE = re.compile(
+    r"системн\w*\s+аналитик\w*|аналитик\w*\s+системн\w*|"
+    r"\bsystem[s]? analyst\b|\btechnical analyst\b|"
+    r"бизнес[- ]системн\w+ аналитик\w*",
+    re.IGNORECASE,
+)
 STACK_RE = re.compile(
     r"frontend|front[ -]?end|фронтенд|фронтендер|react(?:\s*native)?|next\.?js|typescript|\bts\b|"
     r"javascript|\bjs\b|vue|nuxt|angular|full[ -]?stack|фулл?стек|node(?:\.js|js)?|"
@@ -222,7 +228,7 @@ def snippet_around(text, pos, n=200):
     return ("…" if start > 0 else "") + out + ("…" if start + n < len(t) else "")
 
 
-def classify_for_prescribe(text, msg_date, *, remote_only=True, now=None):
+def classify_for_prescribe(text, msg_date, *, remote_only=True, now=None, profile="react"):
     """(status, post_kind, reason) для автопрописки без отправки."""
     now = now or datetime.now(UTC)
     if msg_date.tzinfo is None:
@@ -237,7 +243,8 @@ def classify_for_prescribe(text, msg_date, *, remote_only=True, now=None):
         return "declined", "job", f"пост старше 30 дней ({age_days:.0f})"
     if not VACANCY_RE.search(text):
         return "new", "review", "нет явного маркера вакансии"
-    if not STACK_RE.search(text):
+    matcher = SYSTEM_ANALYST_RE if profile == "analyst" else STACK_RE
+    if not matcher.search(text):
         return "declined", "job", "нерелевантный стек"
     if LOW_GRADE_RE.search(text):
         return "declined", "job", "стажировка/part-time"
@@ -347,7 +354,7 @@ def flush():
 
 def collect_from_text(
     text, *, channel, channel_id, msg_id, msg_date=None, link="", exclude_username="",
-    username_only=True,
+    username_only=True, role=None,
 ):
     """Извлечь лиды из одного поста и влить в хранилище. Возвращает число НОВЫХ.
 
@@ -359,6 +366,10 @@ def collect_from_text(
     skip = f"@{exclude_username.lower()}" if exclude_username else ""
     store = get_store()
     new = 0
+    analyst_relevant = bool(
+        role == "analyst" and SYSTEM_ANALYST_RE.search(text) and VACANCY_RE.search(text)
+    )
+    assigned_role = role if role != "analyst" or analyst_relevant else "unassigned"
     for ltype, value in extract_leads(text):
         if ltype == "username" and value == skip:
             continue
@@ -367,6 +378,20 @@ def collect_from_text(
         key = (ltype, value)
         if key in store:
             store[key]["occurrences"] += 1  # статус и первый источник не трогаем
+            if role and (role != "analyst" or analyst_relevant):
+                roles = store[key].setdefault("roles", [store[key].get("role", "react")])
+                if role not in roles:
+                    roles.append(role)
+                if role == "analyst":
+                    contexts = store[key].setdefault("role_contexts", {})
+                    contexts["analyst"] = {
+                        "source_channel": channel,
+                        "source_channel_id": channel_id,
+                        "source_msg_id": msg_id,
+                        "source_date": f"{msg_date:%Y-%m-%d %H:%M}" if msg_date else "",
+                        "link": link or "",
+                        "snippet": snippet_around(text, 0),
+                    }
             continue
         new += 1
         store[key] = {
@@ -383,6 +408,18 @@ def collect_from_text(
             "link": link or "",
             "snippet": snippet_around(text, 0),
             "post_kind": ("seeker" if SEEKER_CHANNEL_RE.search(channel) else post_kind_of(text)),
+            "role": assigned_role,
+            "roles": [assigned_role],
+            "role_contexts": ({
+                "analyst": {
+                    "source_channel": channel,
+                    "source_channel_id": channel_id,
+                    "source_msg_id": msg_id,
+                    "source_date": f"{msg_date:%Y-%m-%d %H:%M}" if msg_date else "",
+                    "link": link or "",
+                    "snippet": snippet_around(text, 0),
+                }
+            } if analyst_relevant else {}),
             "contacted_at": None,
             "note": "",
         }
@@ -460,6 +497,7 @@ async def cmd_scan(client, args):
                     link=link,
                     exclude_username=getattr(ent, "username", "") or "",
                     username_only=not args.all_types,
+                    role=args.profile or "react",
                 )
         except Exception as e:
             print(f"!! {name!r}: {e}")
@@ -510,6 +548,7 @@ async def cmd_prescribe(client, args):
         1
         for r in store.values()
         if r.get("type") == "username"
+        and profile_name in r.get("roles", [r.get("role", "react")])
         and (
             r.get("prescribed_ready_date") == today
             or str(r.get("prescribed_ready_at", "")).startswith(today)
@@ -539,7 +578,7 @@ async def cmd_prescribe(client, args):
                 if not contacts:
                     continue
                 status, kind, reason = classify_for_prescribe(
-                    text, m.date, remote_only=remote_only, now=now
+                    text, m.date, remote_only=remote_only, now=now, profile=profile_name
                 )
                 if kind == "job" and status == "new" and len(contacts) > 1 and not marked:
                     kind, reason = "review", "несколько контактов, контакт HR неочевиден"
@@ -554,10 +593,22 @@ async def cmd_prescribe(client, args):
                     seen_this_run.add(key)
                     existing = store.get(key)
                     if existing and existing.get("status") != "new":
-                        existing["occurrences"] = existing.get("occurrences", 1) + 1
-                        existing["last_seen"] = _now_iso()
-                        stats["existing"] += 1
-                        continue
+                        # Оживление «нерелевантный стек»: контакт когда-то отклонил
+                        # прогон ДРУГОГО профиля, а сейчас пост проходит фильтры
+                        # текущего профиля и контакт ещё ни разу не получал
+                        # сообщение — переквалифицируем в new вместо вечного скипа.
+                        requalify = (
+                            status == "new"
+                            and kind == "job"
+                            and "нерелевантный стек" in (existing.get("note") or "")
+                            and not existing.get("contacted_at")
+                            and not existing.get("manual_prescribed")
+                        )
+                        if not requalify:
+                            existing["occurrences"] = existing.get("occurrences", 1) + 1
+                            existing["last_seen"] = _now_iso()
+                            stats["existing"] += 1
+                            continue
 
                     final_status, final_kind, final_reason = status, kind, reason
                     if contact_type == "username" and final_status == "new" and final_kind == "job":
@@ -583,8 +634,11 @@ async def cmd_prescribe(client, args):
                         and final_kind == "job"
                         and not already_ready
                     )
+                    role_list = list(dict.fromkeys([*((existing or {}).get("roles") or [((existing or {}).get("role") or "react")]), profile_name]))
                     record = {
                         "type": contact_type,
+                        "role": profile_name,
+                        "roles": role_list,
                         "value": value,
                         "status": final_status,
                         "first_seen": (existing or {}).get("first_seen", _now_iso()),
@@ -661,7 +715,11 @@ async def cmd_prescribe(client, args):
                 else:
                     actual_date = message.date if message and message.date else msg_date or now
                     status, kind, reason = classify_for_prescribe(
-                        text, actual_date, remote_only=remote_only, now=now
+                        text,
+                        actual_date,
+                        remote_only=remote_only,
+                        now=now,
+                        profile=profile_name,
                     )
             except Exception as e:
                 status, kind, reason = (
@@ -870,6 +928,8 @@ def select_resume_for_lead(record, policy, explicit=None, disabled=False):
     text = record.get("snippet") or ""
     for rule in policy.get("rules", []):
         if any(re.search(pattern, text, re.IGNORECASE) for pattern in rule.get("patterns", [])):
+            if rule.get("no_resume"):
+                return None
             return os.path.join(HERE, rule["file"])
     cyrillic = len(re.findall(r"[а-яё]", text, re.IGNORECASE))
     language = "ru" if cyrillic else "en"

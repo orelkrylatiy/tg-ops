@@ -54,6 +54,12 @@ STACK_RE = re.compile(
     r"javascript|js\b| redux|zustand|vite|webpack",
     re.IGNORECASE,
 )
+SYSTEM_ANALYST_RE = re.compile(
+    r"системн\w*\s+аналитик\w*|аналитик\w*\s+системн\w*|"
+    r"\bsystem[s]? analyst\b|\btechnical analyst\b|"
+    r"бизнес[- ]системн\w+ аналитик\w*",
+    re.IGNORECASE,
+)
 ML_STACK_RE = re.compile(
     r"\bml\b|machine\s*learning|data\s*science|data\s*scientist|"
     r"mlops|deep\s*learning|нейросет|машинн\w+ обучен|"
@@ -121,22 +127,25 @@ def resolve_profile(cfg, name):
 
 def parse_salary_min(text):
     """Грубая оценка нижней границы ЗП в тыс. руб./мес из текста вакансии."""
-    t = text.replace(" ", " ")
+    t = text.replace(" ", " ").replace(" ", " ")
     mins = []
     # «от 300 000», «от 300к», «от 300 k»
     for m in re.finditer(r"от\s*(\d[\d\s]{0,8})\s*(000|к|k)", t, re.IGNORECASE):
-        num = int(m.group(1).replace(" ", ""))
+        num = int(re.sub(r"\D", "", m.group(1)))
         mins.append(num * 1000 if num < 1000 else num)
     # диапазон «250 000 – 400 000» / «250–400к»
     for m in re.finditer(
         r"(\d[\d\s]{0,8})\s*[–—-]\s*(\d[\d\s]{0,8})\s*(000|к|k)", t, re.IGNORECASE
     ):
-        a = int(m.group(1).replace(" ", ""))
+        a = int(re.sub(r"\D", "", m.group(1)))
         if a < 1000:
             a *= 1000
         mins.append(a)
     # «250к» голое
     for m in re.finditer(r"(?<!\d)(\d{2,3})\s?к\b", t, re.IGNORECASE):
+        before = t[: m.start()].rstrip()
+        if before and before[-1].isdigit():  # «400 000к» — «000» это хвост тысячи, не «0к»
+            continue
         mins.append(int(m.group(1)) * 1000)
     return min(mins) if mins else None
 
@@ -345,7 +354,7 @@ async def cmd_scan(client, args):
     channels_scanned = 0
     channels_failed = 0
     messages_scanned = 0
-    stack_re = ML_STACK_RE if args.profile == "ml" else STACK_RE
+    stack_re = SYSTEM_ANALYST_RE if args.profile == "analyst" else ML_STACK_RE if args.profile == "ml" else STACK_RE
     for d in targets:
         try:
             msgs = await fetch_messages(client, d.entity, args.n, since)
@@ -386,7 +395,11 @@ async def cmd_scan(client, args):
             ):
                 continue  # явно офис/город, про удалёнку ни слова
             stack = stack_re.findall(text)
-            sal = parse_salary_min(text)
+            try:
+                sal = parse_salary_min(text)
+            except ValueError as exc:  # кривая ЗП не должна валить весь скан
+                print(f"    ! parse_salary_min: {exc} — пост пропущен без ЗП")
+                sal = None
             ok_stack = bool(stack)
             ok_sal = sal is None or sal >= args.min_salary * 1000
             if not (ok_stack and ok_sal):

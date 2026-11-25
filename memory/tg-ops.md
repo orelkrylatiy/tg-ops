@@ -171,3 +171,13 @@ SSH-алиас `sg`, путь `/home/ubuntu/tg-ops`, соседний пакет
 - Аккаунт 2 — `@maxxwyy`, сессия `userbot-maxxwyy.session`; только ручная работа
   через SOCKS5 `127.0.0.1:10909` (выход Германия), с `TG_PROXY_ONLY=1`.
   `tg-ops-responder2.service` не используется.
+
+
+## Автопубликация LangiaFlow в Telegram (20.11.2026)
+
+- Постер и расписание находятся в `langiaflow_post.py` и `langiaflow_schedule.py` внутри `tg-ops`; канал — `@langiaflow`.
+- Cron запускает планировщик каждые 10 минут с 09:00 до 21:59 по Москве. Планировщик выбирает случайное время 09:00–21:05, публикует не больше одного поста в день и после неудачной попытки не повторяет платную генерацию в тот же день.
+- Текст создаётся и валидируется `humanizer_framework.CommunicationFramework` непосредственно из TG Ops; настройки OpenAI читаются через `HUMANIZER_ENV_FILE=/home/ubuntu/humanizer-framework/.env`. Канальные правила требуют короткий ясный заголовок, понятный пример по изучению языка и практический вывод.
+- Для публикации используется отдельная SQLite-копия Telegram-сессии `userbot-langiaflow.session`, чтобы не открывать занятую responder-сессию. Файл сессии приватный и не коммитится.
+- Источники — RU/EN снимок 40 статей и карточек в `/home/ubuntu/personal-wiki-langiaflow-main/01 Projects/Репетиторство/Generated Content/LangiaFlow`. Снимок обновлён из локального `langiaflow` `origin/main` на `196baec2a35ee92b89fa60380e58efad31c98706`; отдельного Git-клона wiki на VPS нет.
+- Журнал публикаций: `leads/langiaflow-posts.jsonl`; лог расписания: `leads/langiaflow-schedule.log`; состояние дневного расписания: `leads/langiaflow-schedule.json`.

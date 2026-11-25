@@ -12,8 +12,8 @@ job_search и канала telegram: фреймворк генерит текс�
 Сам ничего не отправляет. Дальше — просмотреть карту и отправить через
 leads.py outreach; подходящее резюме выбирается из config.json.
 
-LLM: по умолчанию — цепочка фреймворка (OpenCode ChatGPT → GLM → OpenAI
-API, ключи в .env самого фреймворка). Явный HUMANIZER_PROVIDER
+LLM: по умолчанию — цепочка фреймворка (Z.AI → OpenCode → OpenAI API,
+ключи в .env самого фреймворка). Явный HUMANIZER_PROVIDER
 (anthropic|glm|claude) переключает на локальный стек llm.env ниже
 (ANTHROPIC_AUTH_TOKEN → api.z.ai/api/anthropic, glm-5.3-flash, thinking
 выключен; ключи — env или llm.env, в git не попадает).
@@ -30,6 +30,11 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+
+# User-installed CLIs (including OpenCode) are outside systemd's default PATH.
+USER_BIN = os.path.join(os.path.expanduser("~"), ".local", "bin")
+if os.path.isdir(USER_BIN) and USER_BIN not in os.environ.get("PATH", "").split(os.pathsep):
+    os.environ["PATH"] = USER_BIN + os.pathsep + os.environ.get("PATH", "")
 
 import leads as leads_mod
 from tgcommon import HERE, connect_any
@@ -252,16 +257,65 @@ _chain_provider_singleton = None
 
 
 def _chain_provider():
-    """Цепочка фреймворка (OpenCode ChatGPT → GLM → OpenAI API), один на процесс.
-
-    Ключи фреймворк берёт сам из своего .env. Локальный llm.env-стек ниже
-    остаётся ручным оверрайдом через HUMANIZER_PROVIDER.
-    """
+    """Цепочка humanizer: Z.AI, OpenCode CLI, затем прямой OpenAI API."""
     global _chain_provider_singleton
     if _chain_provider_singleton is None:
-        from humanizer_framework.providers import default_provider
+        from humanizer_framework.env import load_env
+        from humanizer_framework.providers import HarnessProvider, ZaiAnthropicProvider
+        from humanizer_framework.providers.cli import OpenCodeCLIProvider
 
-        _chain_provider_singleton = default_provider()
+        class OpenAIHTTPProvider:
+            name = "openai-api-http"
+            model = os.environ.get("HUMANIZER_OPENAI_API_MODEL", "gpt-4.1-mini")
+            last_usage = None
+
+            def generate(self, messages, *, temperature=0.4, max_tokens=300):
+                load_env()
+                key = os.environ.get("OPENAI_API_KEY")
+                if not key:
+                    raise HumanizerError("нет OPENAI_API_KEY во фреймворке")
+                payload = {
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                }
+                request = urllib.request.Request(
+                    "https://api.openai.com/v1/chat/completions",
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={
+                        "Authorization": f"Bearer {key}",
+                        "Content-Type": "application/json",
+                    },
+                    method="POST",
+                )
+                try:
+                    with urllib.request.urlopen(request, timeout=90) as response:
+                        data = json.loads(response.read().decode("utf-8"))
+                except urllib.error.HTTPError as exc:
+                    raise HumanizerError(f"OpenAI API HTTP {exc.code}") from exc
+                except Exception as exc:
+                    raise HumanizerError(f"OpenAI API request failed ({type(exc).__name__})") from exc
+                usage = data.get("usage")
+                self.last_usage = usage if isinstance(usage, dict) else None
+                choices = data.get("choices") or []
+                content = choices[0].get("message", {}).get("content") if choices else None
+                if not isinstance(content, str) or not content.strip():
+                    raise HumanizerError("OpenAI API вернул пустой текст")
+                return content.strip()
+
+        providers = [ZaiAnthropicProvider()]
+        if shutil.which("opencode"):
+            providers.append(
+                OpenCodeCLIProvider(
+                    model=os.environ.get(
+                        "HUMANIZER_OPENCODE_MODEL", "openai/gpt-5.6-luna-fast"
+                    ),
+                    timeout_seconds=120,
+                )
+            )
+        providers.append(OpenAIHTTPProvider())
+        _chain_provider_singleton = HarnessProvider(providers)
     return _chain_provider_singleton
 
 
@@ -286,7 +340,7 @@ def _generation_label():
     return (
         f"цепочка фреймворка, фактически {last}"
         if last
-        else "цепочка фреймворка (opencode → z.ai → openai-api)"
+        else "цепочка фреймворка (z.ai → opencode → openai-api)"
     )
 
 
@@ -295,7 +349,11 @@ def _generation_label():
 PROFILE_FACTS = [
     "Максим — мужчина, о себе в мужском роде, «увидел(а)» запрещены",
     "frontend-разработчик: React/TypeScript, 5+ лет; в стеке также Next.js",
-    "рассматривает вакансии Frontend/React, Full-stack, React Native, ML и AI; выбирать резюме строго по вакансии",
+    "рассматривает вакансии Frontend/React, Full-stack, React Native, ML, AI и системного аналитика; выбирать резюме строго по вакансии",
+    "для системного анализа: инженерный бэкграунд в разработке сложных веб-приложений; финтех и B2B, торговый терминал Т-Инвестиций",
+    "системный анализ: интеграции, API-контракты, моделирование данных и формализация финансовой бизнес-логики; Kafka, PostgreSQL, REST API, WebSocket/Centrifugo, OAuth 2.0/OIDC",
+    "подтверждённые результаты системного анализа: период обновления справочника сокращён с 5 до 1 минуты; интеграция Сделок авторов Пульса в реальном времени; требования миграции SSO для 5 доменов; унификация около 200 событий аналитики",
+    "координация команды 15+ специалистов; менторинг двух стажёров; Docs-as-Code, SDD и AI-агенты в системном анализе",
     "сейчас делает высоконагруженный трейдинг-терминал: WebSocket, real-time, 10k+ трейдеров",
     "английский B2",
     "для российских компаний Максим живёт в Москве; Алматы не упоминать",

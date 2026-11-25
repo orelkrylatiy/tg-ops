@@ -10,6 +10,15 @@
     "rules": [
       {
         "patterns": [
+          "системн\\w+ аналитик",
+          "system analyst",
+          "systems analyst",
+          "technical analyst"
+        ],
+        "file": "resume/resume-system-analyst.pdf"
+      },
+      {
+        "patterns": [
           "react\\s*native",
           "react-native",
           "reactnative"
@@ -117,6 +126,17 @@
         "@JavaScript_Jobb",
         "@FrontendPortal",
         "-1001782596777"
+      ]
+    },
+    "analyst": {
+      "title": "Системный аналитик: финтех, торговые системы, B2B, API и интеграции из CorgiWork",
+      "days": 30,
+      "min_salary": 0,
+      "limit": 500,
+      "remote_only": false,
+      "out_dir": "vacancies-analyst",
+      "channels": [
+        "@corgiwork_bot"
       ]
     }
   },

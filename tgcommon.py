@@ -1,8 +1,10 @@
 """Общее для tg.py и watcher.py: креды, пути, коннект с фоллбэком на SOCKS-прокси."""
 
 import asyncio
+import json
 import logging
 import os
+from pathlib import Path
 
 from telethon import TelegramClient
 
@@ -32,6 +34,32 @@ _CONN_KW = dict(timeout=15, request_retries=1, connection_retries=1, retry_delay
 SERVICE_CHAT_IDS = {777000}
 
 
+def configured_sessions():
+    """Load configured Telegram sessions, falling back to the shipped example."""
+    here = Path(HERE)
+    config_path = here / "sessions.json"
+    if not config_path.is_file():
+        config_path = here / "sessions.example.json"
+    data = json.loads(config_path.read_text(encoding="utf-8"))
+    rows = data.get("sessions", [])
+    if not isinstance(rows, list):
+        raise ValueError("sessions must be a list")
+    result = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        session_name = str(row.get("session") or "")
+        if not session_name or os.path.basename(session_name) != session_name:
+            raise ValueError("Invalid session basename in sessions.json")
+        session_path = str(here / session_name)
+        item = dict(row)
+        item.setdefault("name", session_name)
+        item["session_path"] = session_path
+        item["exists"] = Path(session_path + ".session").is_file()
+        result.append(item)
+    return result
+
+
 def load_phone():
     with open(os.path.join(HERE, "phone.env"), encoding="utf-8") as fh:
         for line in fh:
@@ -40,30 +68,30 @@ def load_phone():
     return None
 
 
-async def connect_any():
-    """Прямой коннект, при неудаче — SOCKS 127.0.0.1:10808. Иначе ConnectionError.
-
-    Session basename comes from TG_SESSION (defaults to userbot); «database is locked»
-    means another process is writing to the same session file.
-    лечится повторами с паузой; любые другие ошибки — переход на следующий транспорт.
-    """
+async def connect_any(session_path=None, attempts=4):
+    """Connect using the requested session, with direct/SOCKS fallback."""
+    session = os.fspath(session_path) if session_path else SESSION
+    if not os.path.isabs(session):
+        session = os.path.join(HERE, session)
     last = None
     proxy_candidates = (PROXY,) if PROXY_ONLY else (None, PROXY)
+    retry_count = max(1, int(attempts))
     for proxy in proxy_candidates:
-        for attempt in range(4):
-            client = TelegramClient(SESSION, API_ID, API_HASH, proxy=proxy, **_CONN_KW)
+        for attempt in range(retry_count):
+            client = TelegramClient(session, API_ID, API_HASH, proxy=proxy, **_CONN_KW)
             try:
                 await client.connect()
                 return client
-            except Exception as e:
-                last = e
+            except Exception as exc:
+                last = exc
                 try:
                     await client.disconnect()
                 except Exception:
                     pass
-                if "database is locked" not in str(e).lower():
-                    break  # не лок сессии — этот транспорт не поможет
-                await asyncio.sleep(5 * (attempt + 1))
+                if "database is locked" not in str(exc).lower():
+                    break
+                if attempt + 1 < retry_count:
+                    await asyncio.sleep(5 * (attempt + 1))
     route = "только через SOCKS" if PROXY_ONLY else "напрямую или через SOCKS"
     raise ConnectionError(
         f"Telegram недоступен {route} :{PROXY_PORT} ({type(last).__name__}). "
