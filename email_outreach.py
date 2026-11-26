@@ -159,7 +159,7 @@ def main():
         "react": "resume/resume-react.pdf",
         "ml": "resume/resume-ml.pdf",
         "ai": "resume/resume-ai.pdf",
-        "analyst": None,
+        "analyst": "resume/resume-system-analyst.pdf",
     }
     resume_value = args.resume or default_resumes[args.role]
     resume_path = Path(resume_value) if resume_value else None

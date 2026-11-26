@@ -381,6 +381,7 @@ async def cmd_scan(client, args):
                         msg_date=m.date,
                         link=_link.strip(),
                         exclude_username=getattr(d.entity, "username", "") or "",
+                        role=getattr(args, "profile", None),
                     )
                 except Exception:
                     pass
